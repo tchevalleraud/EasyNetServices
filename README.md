@@ -65,6 +65,7 @@ The container is configured through environment variables:
 | `ENS_TLS_KEY` | | Path to the private key file when `ENS_TLS_MODE=custom`. |
 | `ENS_SESSION_TTL` | `12h` | Lifetime of a web session, extended while it is in use. |
 | `ENS_LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error`. |
+| `TZ` | `UTC` | Initial time zone (e.g. `Europe/Paris`), used until one is chosen in the web interface. |
 | `ENS_NTP_CLOCK_CONTROL` | `false` | Let the NTP server discipline the host clock. Requires `--cap-add SYS_TIME`. |
 
 ### Ports

@@ -113,6 +113,46 @@ paths:
         "401": { $ref: "#/components/responses/Error" }
         "403": { $ref: "#/components/responses/Error" }
 
+  /system/settings:
+    get:
+      tags: [system]
+      summary: Get the system settings
+      responses:
+        "200":
+          description: System settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SystemSettings" }
+        "401": { $ref: "#/components/responses/Error" }
+    put:
+      tags: [system]
+      summary: Replace the system settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SystemSettings" }
+      responses:
+        "200":
+          description: Settings applied
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SystemSettings" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+
+  /system/time:
+    get:
+      tags: [system]
+      summary: Get the current server time
+      responses:
+        "200":
+          description: Server time in the configured time zone
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SystemTime" }
+        "401": { $ref: "#/components/responses/Error" }
+
   /ntp/config:
     get:
       tags: [ntp]
@@ -293,3 +333,23 @@ components:
               lastRxSeconds: { type: integer, description: "-1 when no sample was received" }
               offsetSeconds: { type: number }
               errorSeconds: { type: number }
+
+    SystemSettings:
+      type: object
+      required: [timezone]
+      properties:
+        timezone:
+          type: string
+          description: IANA time zone used to display dates and in the logs.
+          example: Europe/Paris
+
+    SystemTime:
+      type: object
+      required: [unixMillis, timezone, abbreviation, utcOffsetSeconds, formattedLocal, formattedUtc]
+      properties:
+        unixMillis: { type: integer, format: int64 }
+        timezone: { type: string, example: Europe/Paris }
+        abbreviation: { type: string, example: CEST }
+        utcOffsetSeconds: { type: integer, example: 7200 }
+        formattedLocal: { type: string, format: date-time }
+        formattedUtc: { type: string, format: date-time }
