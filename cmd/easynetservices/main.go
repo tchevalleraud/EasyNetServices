@@ -14,6 +14,8 @@ import (
 	"path/filepath"
 	"syscall"
 	"time"
+	// Embed the time zone database: the image does not ship tzdata.
+	_ "time/tzdata"
 
 	"github.com/tchevalleraud/EasyNetServices/internal/api"
 	"github.com/tchevalleraud/EasyNetServices/internal/auth"
@@ -21,6 +23,7 @@ import (
 	"github.com/tchevalleraud/EasyNetServices/internal/ntp"
 	"github.com/tchevalleraud/EasyNetServices/internal/store"
 	"github.com/tchevalleraud/EasyNetServices/internal/supervisor"
+	"github.com/tchevalleraud/EasyNetServices/internal/system"
 	"github.com/tchevalleraud/EasyNetServices/internal/tlsutil"
 	"github.com/tchevalleraud/EasyNetServices/internal/version"
 	"github.com/tchevalleraud/EasyNetServices/web"
@@ -72,7 +75,16 @@ func serve() error {
 	if err != nil {
 		return err
 	}
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: cfg.LogLevel}))
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+		Level: cfg.LogLevel,
+		// Log timestamps in the configured time zone.
+		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+			if a.Key == slog.TimeKey && len(groups) == 0 {
+				a.Value = slog.TimeValue(a.Value.Time().In(system.Location()))
+			}
+			return a
+		},
+	}))
 	log.Info("starting EasyNetServices", "version", version.Version, "role", cfg.Role)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -100,6 +112,11 @@ func serve() error {
 			"username", auth.DefaultAdminUsername, "password", auth.DefaultAdminPassword)
 	}
 
+	sysMgr := system.NewManager(st, log)
+	if err := sysMgr.Init(ctx); err != nil {
+		log.Error("failed to apply system settings", "error", err)
+	}
+
 	sup := supervisor.NewS6()
 	ntpMgr := ntp.NewManager(st, sup, cfg.DataDir, log.With("service", "ntp"))
 	// A service that fails to start must not prevent access to the interface,
@@ -110,7 +127,7 @@ func serve() error {
 
 	srv := &http.Server{
 		Addr:              cfg.Listen,
-		Handler:           api.NewServer(cfg, st, authSvc, api.Services{NTP: ntpMgr}, web.FS(), log).Handler(),
+		Handler:           api.NewServer(cfg, st, authSvc, api.Services{System: sysMgr, NTP: ntpMgr}, web.FS(), log).Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      60 * time.Second,

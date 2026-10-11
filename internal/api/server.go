@@ -14,6 +14,7 @@ import (
 	"github.com/tchevalleraud/EasyNetServices/internal/config"
 	"github.com/tchevalleraud/EasyNetServices/internal/ntp"
 	"github.com/tchevalleraud/EasyNetServices/internal/store"
+	"github.com/tchevalleraud/EasyNetServices/internal/system"
 	"github.com/tchevalleraud/EasyNetServices/internal/validation"
 )
 
@@ -25,6 +26,7 @@ type Server struct {
 	store        *store.Store
 	auth         *auth.Service
 	ntp          *ntp.Manager
+	system       *system.Manager
 	ui           fs.FS
 	log          *slog.Logger
 	startedAt    time.Time
@@ -34,7 +36,8 @@ type Server struct {
 
 // Services groups the service managers exposed by the API.
 type Services struct {
-	NTP *ntp.Manager
+	System *system.Manager
+	NTP    *ntp.Manager
 }
 
 // NewServer returns the HTTP server. ui contains the built web interface.
@@ -44,6 +47,7 @@ func NewServer(cfg *config.Config, st *store.Store, authSvc *auth.Service, svc S
 		store:        st,
 		auth:         authSvc,
 		ntp:          svc.NTP,
+		system:       svc.System,
 		ui:           ui,
 		log:          log,
 		startedAt:    time.Now(),
@@ -64,6 +68,9 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/auth/me", s.requireAuth(s.handleMe, true))
 	mux.Handle("POST /api/v1/auth/password", s.requireAuth(s.handleChangePassword, true))
 	mux.Handle("GET /api/v1/system", s.requireAuth(s.handleSystem, false))
+	mux.Handle("GET /api/v1/system/settings", s.requireAuth(s.handleGetSystemSettings, false))
+	mux.Handle("PUT /api/v1/system/settings", s.requireAuth(s.handlePutSystemSettings, false))
+	mux.Handle("GET /api/v1/system/time", s.requireAuth(s.handleGetSystemTime, false))
 	mux.Handle("GET /api/v1/ntp/config", s.requireAuth(s.handleGetNTPConfig, false))
 	mux.Handle("PUT /api/v1/ntp/config", s.requireAuth(s.handlePutNTPConfig, false))
 	mux.Handle("GET /api/v1/ntp/status", s.requireAuth(s.handleGetNTPStatus, false))

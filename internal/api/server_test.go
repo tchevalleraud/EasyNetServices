@@ -18,6 +18,7 @@ import (
 	"github.com/tchevalleraud/EasyNetServices/internal/ntp"
 	"github.com/tchevalleraud/EasyNetServices/internal/store"
 	"github.com/tchevalleraud/EasyNetServices/internal/supervisor"
+	"github.com/tchevalleraud/EasyNetServices/internal/system"
 )
 
 type testClient struct {
@@ -53,7 +54,7 @@ func newTestClient(t *testing.T) *testClient {
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	// Services are not supervised in tests: the scan directory does not exist.
 	ntpMgr := ntp.NewManager(st, &supervisor.S6{ServiceDir: dir + "/no-s6"}, dir, log)
-	srv := httptest.NewServer(NewServer(cfg, st, authSvc, Services{NTP: ntpMgr}, ui, log).Handler())
+	srv := httptest.NewServer(NewServer(cfg, st, authSvc, Services{System: system.NewManager(st, log), NTP: ntpMgr}, ui, log).Handler())
 	t.Cleanup(srv.Close)
 
 	jar, _ := cookiejar.New(nil)
@@ -218,5 +219,22 @@ func TestNTPConfig(t *testing.T) {
 	status, body = c.do("GET", "/api/v1/ntp/status", "")
 	if status != http.StatusOK || body["state"] != "unavailable" {
 		t.Fatalf("expected unavailable status outside the container, got %d %v", status, body)
+	}
+}
+
+func TestSystemSettings(t *testing.T) {
+	c := newTestClient(t)
+	c.login()
+
+	status, body := c.do("PUT", "/api/v1/system/settings", `{"timezone":"Mars/Olympus"}`)
+	if status != http.StatusBadRequest || errorCode(body) != "validation_failed" {
+		t.Fatalf("expected validation_failed, got %d %v", status, body)
+	}
+	if status, body = c.do("PUT", "/api/v1/system/settings", `{"timezone":"Asia/Tokyo"}`); status != http.StatusOK {
+		t.Fatalf("expected update to succeed, got %d %v", status, body)
+	}
+	status, body = c.do("GET", "/api/v1/system/time", "")
+	if status != http.StatusOK || body["timezone"] != "Asia/Tokyo" || body["utcOffsetSeconds"] != float64(9*3600) {
+		t.Fatalf("unexpected time: %d %v", status, body)
 	}
 }
