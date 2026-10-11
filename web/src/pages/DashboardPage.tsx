@@ -8,6 +8,7 @@ import type { SystemInfo } from '../api/types'
 import { ServiceStateBadge } from '../components/ServiceStateBadge'
 import { useServerTime } from '../hooks/useServerTime'
 import { formatDuration } from '../utils/format'
+import { useDnsStatus, useZones } from './dns/queries'
 import { useNtpStatus } from './ntp/queries'
 
 function ServiceCard({
@@ -73,6 +74,28 @@ function NtpCard() {
   )
 }
 
+function DnsCard() {
+  const { data: status } = useDnsStatus()
+  const { data: zones } = useZones()
+  return (
+    <ServiceCard
+      name="DNS"
+      description="Local zones, recursion and forwarding"
+      icon={IconWorldWww}
+      to="/dns"
+      badge={status ? <ServiceStateBadge state={status.recursor} /> : <Skeleton h={20} w={70} />}
+      footer={
+        status && (
+          <Text size="sm" mt="sm" c="dimmed">
+            {zones ? `${zones.length} local zone${zones.length === 1 ? '' : 's'}` : ''}
+            {status.stats ? ` · ${new Intl.NumberFormat('en-US').format(status.stats.questions)} queries` : ''}
+          </Text>
+        )
+      }
+    />
+  )
+}
+
 function ComingSoonBadge() {
   return (
     <Badge variant="light" color="gray">
@@ -105,12 +128,7 @@ export function DashboardPage() {
       <Title order={2}>Dashboard</Title>
 
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }}>
-        <ServiceCard
-          name="DNS"
-          description="Authoritative zones, recursion, dynamic DNS and DNS firewall"
-          icon={IconWorldWww}
-          badge={<ComingSoonBadge />}
-        />
+        <DnsCard />
         <ServiceCard
           name="DHCP"
           description="DHCPv4 and DHCPv6 subnets, reservations and leases"

@@ -14,9 +14,11 @@ export function formatDuration(seconds: number): string {
   const days = Math.floor(seconds / 86400)
   const hours = Math.floor((seconds % 86400) / 3600)
   const minutes = Math.floor((seconds % 3600) / 60)
-  if (days > 0) return `${days}d ${hours}h`
-  if (hours > 0) return `${hours}h ${minutes}m`
-  if (minutes > 0) return `${minutes}m`
+  const rest = seconds % 60
+  const join = (major: string, minor: string, value: number) => (value > 0 ? `${major} ${minor}` : major)
+  if (days > 0) return join(`${days}d`, `${hours}h`, hours)
+  if (hours > 0) return join(`${hours}h`, `${minutes}m`, minutes)
+  if (minutes > 0) return join(`${minutes}m`, `${rest}s`, rest)
   return `${seconds}s`
 }
 

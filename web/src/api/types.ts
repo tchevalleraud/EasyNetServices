@@ -79,3 +79,66 @@ export interface SystemTime {
   formattedLocal: string
   formattedUtc: string
 }
+
+export type DnsResolution = 'recursive' | 'forward'
+export type DnssecMode = 'off' | 'process' | 'validate'
+
+export interface DnsForwarder {
+  address: string
+  tls: boolean
+}
+
+export interface DnsForwardZone {
+  name: string
+  servers: string[]
+  recursive: boolean
+}
+
+export interface DnsSettings {
+  enabled: boolean
+  listenAddresses: string[]
+  allowFrom: string[]
+  resolution: DnsResolution
+  forwarders: DnsForwarder[]
+  forwardZones: DnsForwardZone[]
+  dnssec: DnssecMode
+}
+
+export interface DnsStats {
+  questions: number
+  cacheHits: number
+  cacheMisses: number
+  cacheEntries: number
+  noErrorAnswers: number
+  nxdomainAnswers: number
+  servfailAnswers: number
+  uptimeSeconds: number
+}
+
+export interface DnsStatus {
+  authoritative: ServiceState
+  recursor: ServiceState
+  stats: DnsStats | null
+}
+
+export interface DnsZone {
+  name: string
+  kind: string
+  serial: number
+}
+
+export interface DnsRecord {
+  content: string
+  disabled: boolean
+}
+
+export interface DnsRRSet {
+  name: string
+  type: string
+  ttl: number
+  records: DnsRecord[]
+}
+
+export interface DnsZoneDetail extends DnsZone {
+  rrsets: DnsRRSet[]
+}
