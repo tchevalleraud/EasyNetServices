@@ -5,26 +5,16 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-)
 
-// ServiceState is the state of the NTP daemon.
-type ServiceState string
-
-const (
-	StateRunning  ServiceState = "running"
-	StateStopped  ServiceState = "stopped"
-	StateDisabled ServiceState = "disabled"
-	// StateUnavailable means the daemon cannot be managed, e.g. when the server
-	// runs outside of the container.
-	StateUnavailable ServiceState = "unavailable"
+	"github.com/tchevalleraud/EasyNetServices/internal/supervisor"
 )
 
 // Status is the runtime state of the NTP service.
 type Status struct {
-	State        ServiceState   `json:"state"`
-	Synchronized bool           `json:"synchronized"`
-	Tracking     *Tracking      `json:"tracking"`
-	Sources      []SourceStatus `json:"sources"`
+	State        supervisor.State `json:"state"`
+	Synchronized bool             `json:"synchronized"`
+	Tracking     *Tracking        `json:"tracking"`
+	Sources      []SourceStatus   `json:"sources"`
 }
 
 // Tracking describes the synchronization of the local clock, as reported by
