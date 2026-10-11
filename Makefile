@@ -6,7 +6,7 @@ IMAGE   ?= easynetservices:local
 PKG     := github.com/tchevalleraud/EasyNetServices/internal/version
 LDFLAGS := -s -w -X $(PKG).Version=$(VERSION) -X $(PKG).Commit=$(COMMIT) -X $(PKG).Date=$(DATE)
 
-.PHONY: all web build test lint run docker clean
+.PHONY: all web build test lint run docker up down logs clean
 
 all: build
 
@@ -33,6 +33,15 @@ run: build ## Run the server locally with data in ./data
 docker: ## Build the Docker image for the local architecture
 	docker buildx build --load -t $(IMAGE) \
 		--build-arg VERSION=$(VERSION) --build-arg COMMIT=$(COMMIT) --build-arg DATE=$(DATE) .
+
+up: ## Build and start the local development stack (compose.dev.yaml)
+	docker compose -f compose.dev.yaml up -d --build
+
+down: ## Stop the local development stack
+	docker compose -f compose.dev.yaml down
+
+logs: ## Follow the logs of the local development stack
+	docker compose -f compose.dev.yaml logs -f
 
 clean:
 	rm -rf bin web/dist

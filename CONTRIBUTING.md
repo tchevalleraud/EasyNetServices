@@ -17,7 +17,19 @@ All code, comments, commit messages and documentation are written in **English**
 
 ## Local development
 
-Requirements: Go (version in `go.mod`), Node.js 24, Docker with Buildx.
+The quickest way to run the project locally only requires Docker: it builds the
+image from the working tree and starts it with the host network on
+`https://localhost:8443`.
+
+```sh
+make up        # build and start (compose.dev.yaml)
+make logs      # follow the logs
+make down      # stop
+```
+
+Every change is checked on this local stack before being pushed.
+
+For a native setup: Go (version in `go.mod`), Node.js 24, Docker with Buildx.
 
 ```sh
 make test      # backend tests
