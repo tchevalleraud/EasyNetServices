@@ -18,7 +18,9 @@ import (
 	"github.com/tchevalleraud/EasyNetServices/internal/api"
 	"github.com/tchevalleraud/EasyNetServices/internal/auth"
 	"github.com/tchevalleraud/EasyNetServices/internal/config"
+	"github.com/tchevalleraud/EasyNetServices/internal/ntp"
 	"github.com/tchevalleraud/EasyNetServices/internal/store"
+	"github.com/tchevalleraud/EasyNetServices/internal/supervisor"
 	"github.com/tchevalleraud/EasyNetServices/internal/tlsutil"
 	"github.com/tchevalleraud/EasyNetServices/internal/version"
 	"github.com/tchevalleraud/EasyNetServices/web"
@@ -98,9 +100,17 @@ func serve() error {
 			"username", auth.DefaultAdminUsername, "password", auth.DefaultAdminPassword)
 	}
 
+	sup := supervisor.NewS6()
+	ntpMgr := ntp.NewManager(st, sup, cfg.DataDir, log.With("service", "ntp"))
+	// A service that fails to start must not prevent access to the interface,
+	// where the configuration can be fixed.
+	if err := ntpMgr.Init(ctx); err != nil {
+		log.Error("failed to apply NTP configuration", "error", err)
+	}
+
 	srv := &http.Server{
 		Addr:              cfg.Listen,
-		Handler:           api.NewServer(cfg, st, authSvc, web.FS(), log).Handler(),
+		Handler:           api.NewServer(cfg, st, authSvc, api.Services{NTP: ntpMgr}, web.FS(), log).Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      60 * time.Second,

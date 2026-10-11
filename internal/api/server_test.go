@@ -15,7 +15,9 @@ import (
 
 	"github.com/tchevalleraud/EasyNetServices/internal/auth"
 	"github.com/tchevalleraud/EasyNetServices/internal/config"
+	"github.com/tchevalleraud/EasyNetServices/internal/ntp"
 	"github.com/tchevalleraud/EasyNetServices/internal/store"
+	"github.com/tchevalleraud/EasyNetServices/internal/supervisor"
 )
 
 type testClient struct {
@@ -27,7 +29,8 @@ type testClient struct {
 func newTestClient(t *testing.T) *testClient {
 	t.Helper()
 	ctx := context.Background()
-	st, err := store.Open(ctx, t.TempDir())
+	dir := t.TempDir()
+	st, err := store.Open(ctx, dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,7 +51,9 @@ func newTestClient(t *testing.T) *testClient {
 		"assets/app.js": {Data: []byte("console.log('app')")},
 	}
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	srv := httptest.NewServer(NewServer(cfg, st, authSvc, ui, log).Handler())
+	// Services are not supervised in tests: the scan directory does not exist.
+	ntpMgr := ntp.NewManager(st, &supervisor.S6{ServiceDir: dir + "/no-s6"}, dir, log)
+	srv := httptest.NewServer(NewServer(cfg, st, authSvc, Services{NTP: ntpMgr}, ui, log).Handler())
 	t.Cleanup(srv.Close)
 
 	jar, _ := cookiejar.New(nil)
@@ -167,5 +172,51 @@ func TestUIAndUnknownAPI(t *testing.T) {
 		if path != "/assets/app.js" && string(data) != "<html>app</html>" {
 			t.Fatalf("%s: expected SPA fallback, got %q", path, data)
 		}
+	}
+}
+
+func (c *testClient) login() {
+	c.t.Helper()
+	c.do("POST", "/api/v1/auth/login", `{"username":"admin","password":"password"}`)
+	if status, _ := c.do("POST", "/api/v1/auth/password", `{"currentPassword":"password","newPassword":"n3w-password"}`); status != http.StatusNoContent {
+		c.t.Fatalf("password change failed: %d", status)
+	}
+}
+
+func TestNTPConfig(t *testing.T) {
+	c := newTestClient(t)
+	if status, _ := c.do("GET", "/api/v1/ntp/config", ""); status != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", status)
+	}
+	c.login()
+
+	status, body := c.do("GET", "/api/v1/ntp/config", "")
+	if status != http.StatusOK || body["enabled"] != true {
+		t.Fatalf("expected default config, got %d %v", status, body)
+	}
+
+	status, body = c.do("PUT", "/api/v1/ntp/config",
+		`{"enabled":true,"sources":[{"type":"server","address":"bad host","iburst":true,"prefer":false,"nts":false}],"access":[],"localStratum":0}`)
+	if status != http.StatusBadRequest || errorCode(body) != "validation_failed" {
+		t.Fatalf("expected validation_failed, got %d %v", status, body)
+	}
+	details, _ := body["error"].(map[string]any)["details"].([]any)
+	if len(details) != 1 || details[0].(map[string]any)["field"] != "sources[0].address" {
+		t.Fatalf("unexpected details: %v", details)
+	}
+
+	status, body = c.do("PUT", "/api/v1/ntp/config",
+		`{"enabled":true,"sources":[{"type":"server","address":"time.cloudflare.com","iburst":true,"prefer":false,"nts":true}],"access":[{"action":"allow","network":"192.168.1.7/24"}],"localStratum":10}`)
+	if status != http.StatusOK {
+		t.Fatalf("expected update to succeed, got %d %v", status, body)
+	}
+	access := body["access"].([]any)[0].(map[string]any)
+	if access["network"] != "192.168.1.0/24" {
+		t.Fatalf("expected normalized network, got %v", access)
+	}
+
+	status, body = c.do("GET", "/api/v1/ntp/status", "")
+	if status != http.StatusOK || body["state"] != "unavailable" {
+		t.Fatalf("expected unavailable status outside the container, got %d %v", status, body)
 	}
 }

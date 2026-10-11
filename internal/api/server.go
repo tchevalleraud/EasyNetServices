@@ -12,7 +12,9 @@ import (
 
 	"github.com/tchevalleraud/EasyNetServices/internal/auth"
 	"github.com/tchevalleraud/EasyNetServices/internal/config"
+	"github.com/tchevalleraud/EasyNetServices/internal/ntp"
 	"github.com/tchevalleraud/EasyNetServices/internal/store"
+	"github.com/tchevalleraud/EasyNetServices/internal/validation"
 )
 
 const maxBodySize = 1 << 20
@@ -22,6 +24,7 @@ type Server struct {
 	cfg          *config.Config
 	store        *store.Store
 	auth         *auth.Service
+	ntp          *ntp.Manager
 	ui           fs.FS
 	log          *slog.Logger
 	startedAt    time.Time
@@ -29,12 +32,18 @@ type Server struct {
 	loginLimiter *rateLimiter
 }
 
+// Services groups the service managers exposed by the API.
+type Services struct {
+	NTP *ntp.Manager
+}
+
 // NewServer returns the HTTP server. ui contains the built web interface.
-func NewServer(cfg *config.Config, st *store.Store, authSvc *auth.Service, ui fs.FS, log *slog.Logger) *Server {
+func NewServer(cfg *config.Config, st *store.Store, authSvc *auth.Service, svc Services, ui fs.FS, log *slog.Logger) *Server {
 	return &Server{
 		cfg:          cfg,
 		store:        st,
 		auth:         authSvc,
+		ntp:          svc.NTP,
 		ui:           ui,
 		log:          log,
 		startedAt:    time.Now(),
@@ -55,6 +64,9 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/auth/me", s.requireAuth(s.handleMe, true))
 	mux.Handle("POST /api/v1/auth/password", s.requireAuth(s.handleChangePassword, true))
 	mux.Handle("GET /api/v1/system", s.requireAuth(s.handleSystem, false))
+	mux.Handle("GET /api/v1/ntp/config", s.requireAuth(s.handleGetNTPConfig, false))
+	mux.Handle("PUT /api/v1/ntp/config", s.requireAuth(s.handlePutNTPConfig, false))
+	mux.Handle("GET /api/v1/ntp/status", s.requireAuth(s.handleGetNTPStatus, false))
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "not_found", "endpoint not found")
 	})
@@ -69,6 +81,8 @@ type apiError struct {
 	Error struct {
 		Code    string `json:"code"`
 		Message string `json:"message"`
+		// Details lists the invalid fields of a validation_failed error.
+		Details validation.Errors `json:"details,omitempty"`
 	} `json:"error"`
 }
 
@@ -85,6 +99,21 @@ func writeError(w http.ResponseWriter, status int, code, message string) {
 	e.Error.Code = code
 	e.Error.Message = message
 	writeJSON(w, status, e)
+}
+
+// writeUpdateError reports the error of a configuration update: field errors
+// are returned as validation_failed, anything else as an internal error.
+func (s *Server) writeUpdateError(w http.ResponseWriter, r *http.Request, err error) {
+	var errs validation.Errors
+	if errors.As(err, &errs) {
+		var e apiError
+		e.Error.Code = "validation_failed"
+		e.Error.Message = "the configuration is invalid"
+		e.Error.Details = errs
+		writeJSON(w, http.StatusBadRequest, e)
+		return
+	}
+	s.internalError(w, r, err)
 }
 
 // decodeJSON decodes a JSON request body into v, writing an error response on failure.
