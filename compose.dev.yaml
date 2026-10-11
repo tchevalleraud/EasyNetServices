@@ -1,0 +1,19 @@
+# Local development stack: builds the image from the working tree.
+#   docker compose -f compose.dev.yaml up -d --build
+services:
+  easynetservices:
+    build:
+      context: .
+      args:
+        VERSION: local
+    image: easynetservices:local
+    container_name: easynetservices-dev
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      ENS_LOG_LEVEL: debug
+    volumes:
+      - easynetservices-dev-data:/data
+
+volumes:
+  easynetservices-dev-data:
