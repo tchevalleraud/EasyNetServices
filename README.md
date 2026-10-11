@@ -20,8 +20,9 @@ configure and monitor them without editing configuration files by hand.
 
 ## Roadmap
 
-The project scope, architecture and technical choices are currently being defined.
-This section will be updated as the design takes shape.
+The project scope, architecture and technical choices are being defined in
+[docs/PROJECT.md](docs/PROJECT.md). See [CONTRIBUTING.md](CONTRIBUTING.md) for the
+development workflow.
 
 ## License
 
