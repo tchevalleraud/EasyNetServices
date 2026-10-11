@@ -4,6 +4,9 @@ ARG GO_VERSION=1.27
 ARG NODE_VERSION=24
 ARG DEBIAN_VERSION=trixie
 ARG S6_OVERLAY_VERSION=3.2.3.2
+# PowerDNS release series, from the official repositories.
+ARG PDNS_AUTH_SERIES=51
+ARG PDNS_REC_SERIES=54
 
 # --- Web interface ----------------------------------------------------------
 FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-alpine AS web
@@ -54,13 +57,32 @@ RUN set -eu; \
       tar -C /rootfs -Jxpf "s6-overlay-$pkg.tar.xz"; \
     done
 
+# --- PowerDNS repository signing key ----------------------------------------
+FROM --platform=$BUILDPLATFORM alpine:3 AS pdns-key
+ARG PDNS_KEY_FINGERPRINT=9FAAA5577E8FCF62093D036C1B0C6205FD380FBB
+RUN apk add --no-cache gnupg \
+    && wget -q -O /powerdns.asc https://repo.powerdns.com/FD380FBB-pub.asc \
+    && gpg --show-keys --with-colons /powerdns.asc | grep -q "^fpr:*${PDNS_KEY_FINGERPRINT}:"
+
 # --- Runtime image ----------------------------------------------------------
 FROM debian:${DEBIAN_VERSION}-slim
+ARG DEBIAN_VERSION
+ARG PDNS_AUTH_SERIES
+ARG PDNS_REC_SERIES
 
-# ca-certificates is needed to authenticate NTS time sources.
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates chrony \
-    && rm -rf /var/lib/apt/lists/*
+COPY --from=pdns-key /powerdns.asc /etc/apt/keyrings/powerdns.asc
+
+# ca-certificates is needed to authenticate NTS time sources and DNS over TLS.
+RUN set -eu; \
+    repo="deb [signed-by=/etc/apt/keyrings/powerdns.asc] http://repo.powerdns.com/debian"; \
+    echo "$repo ${DEBIAN_VERSION}-auth-${PDNS_AUTH_SERIES} main" > /etc/apt/sources.list.d/powerdns-auth.list; \
+    echo "$repo ${DEBIAN_VERSION}-rec-${PDNS_REC_SERIES} main" > /etc/apt/sources.list.d/powerdns-rec.list; \
+    printf 'Package: pdns-*\nPin: origin repo.powerdns.com\nPin-Priority: 600\n' > /etc/apt/preferences.d/powerdns; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+      ca-certificates chrony sqlite3 \
+      pdns-server pdns-backend-sqlite3 pdns-recursor; \
+    rm -rf /var/lib/apt/lists/*
 
 COPY --from=s6 /rootfs/ /
 COPY docker/rootfs/ /
@@ -72,7 +94,7 @@ ENV S6_BEHAVIOUR_IF_STAGE2_FAILS=2 \
     ENS_DATA_DIR=/data
 
 VOLUME /data
-EXPOSE 8443/tcp 123/udp
+EXPOSE 8443/tcp 53/udp 53/tcp 123/udp
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD ["/usr/local/bin/easynetservices", "healthcheck"]
