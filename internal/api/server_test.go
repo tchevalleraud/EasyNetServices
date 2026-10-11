@@ -54,6 +54,8 @@ func newTestClient(t *testing.T) *testClient {
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	// Services are not supervised in tests: the scan directory does not exist.
 	ntpMgr := ntp.NewManager(st, &supervisor.S6{ServiceDir: dir + "/no-s6"}, dir, log)
+	// Never run the chrony binaries that may be installed on the test machine.
+	ntpMgr.SetRunner(func(context.Context, string, ...string) ([]byte, error) { return nil, nil })
 	srv := httptest.NewServer(NewServer(cfg, st, authSvc, Services{System: system.NewManager(st, log), NTP: ntpMgr}, ui, log).Handler())
 	t.Cleanup(srv.Close)
 

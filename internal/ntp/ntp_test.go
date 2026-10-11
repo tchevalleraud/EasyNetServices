@@ -239,7 +239,7 @@ func TestManagerRejectsConfigRefusedByChrony(t *testing.T) {
 		return []byte("2026-10-11T22:00:36Z Fatal error : Could not parse server directive at line 1\n"), errors.New("exit status 1")
 	}
 	_, err := m.Update(context.Background(), DefaultConfig())
-	if err == nil || !strings.Contains(err.Error(), "Could not parse server directive") {
+	if !errors.Is(err, ErrRejected) || !strings.Contains(err.Error(), "Could not parse server directive") {
 		t.Fatalf("expected chrony error, got %v", err)
 	}
 }

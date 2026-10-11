@@ -22,8 +22,13 @@ const (
 	serviceName = "chronyd"
 )
 
-// ErrApply is returned when the configuration was saved but could not be applied.
-var ErrApply = errors.New("configuration saved but could not be applied")
+var (
+	// ErrApply is returned when the configuration was saved but could not be applied.
+	ErrApply = errors.New("configuration saved but could not be applied")
+	// ErrRejected is returned when chronyd refuses a configuration that passed
+	// validation.
+	ErrRejected = errors.New("chrony rejected the configuration")
+)
 
 // Runner executes a command and returns its combined output.
 type Runner func(ctx context.Context, name string, args ...string) ([]byte, error)
@@ -54,6 +59,11 @@ func NewManager(st *store.Store, sup supervisor.Supervisor, dataDir string, log 
 		confFile:   filepath.Join(dir, "chrony.conf"),
 		stateDir:   filepath.Join(dir, "state"),
 	}
+}
+
+// SetRunner replaces the function used to run chronyd and chronyc, for tests.
+func (m *Manager) SetRunner(r Runner) {
+	m.run = r
 }
 
 // Config returns the stored configuration, or the default one when none was saved.
@@ -126,7 +136,7 @@ func (m *Manager) check(ctx context.Context, content string) error {
 		return nil
 	}
 	if err != nil {
-		return fmt.Errorf("chrony rejected the configuration: %s", firstLine(out))
+		return fmt.Errorf("%w: %s", ErrRejected, firstLine(out))
 	}
 	return nil
 }
