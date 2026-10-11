@@ -57,6 +57,11 @@ RUN set -eu; \
 # --- Runtime image ----------------------------------------------------------
 FROM debian:${DEBIAN_VERSION}-slim
 
+# ca-certificates is needed to authenticate NTS time sources.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates chrony \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY --from=s6 /rootfs/ /
 COPY docker/rootfs/ /
 COPY --from=server /out/easynetservices /usr/local/bin/easynetservices
@@ -67,7 +72,7 @@ ENV S6_BEHAVIOUR_IF_STAGE2_FAILS=2 \
     ENS_DATA_DIR=/data
 
 VOLUME /data
-EXPOSE 8443/tcp
+EXPOSE 8443/tcp 123/udp
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD ["/usr/local/bin/easynetservices", "healthcheck"]

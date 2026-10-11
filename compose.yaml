@@ -9,6 +9,9 @@ services:
     environment:
       ENS_ROLE: standalone
       ENS_LISTEN: ":8443"
+      # Uncomment both settings to let the NTP server synchronize the host clock.
+      # ENS_NTP_CLOCK_CONTROL: "true"
+    # cap_add: [SYS_TIME]
     volumes:
       - easynetservices-data:/data
 
