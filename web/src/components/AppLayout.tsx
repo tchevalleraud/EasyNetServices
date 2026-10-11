@@ -25,7 +25,7 @@ const navItems: NavItem[] = [
   { label: 'Dashboard', icon: IconDashboard, to: '/' },
   { label: 'DNS', icon: IconWorldWww },
   { label: 'DHCP', icon: IconNetwork },
-  { label: 'NTP', icon: IconClock },
+  { label: 'NTP', icon: IconClock, to: '/ntp' },
 ]
 
 export function AppLayout() {
@@ -86,7 +86,7 @@ export function AppLayout() {
               key={item.label}
               component={RouterNavLink}
               to={item.to}
-              end
+              end={item.to === '/'}
               label={item.label}
               leftSection={<item.icon size={18} />}
               onClick={close}
