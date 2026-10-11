@@ -89,7 +89,7 @@ GitHub Actions run on every pull request and on every push to `dev`:
 
 - lint and tests (backend and frontend),
 - multi-architecture Docker build (`linux/amd64`, `linux/arm64`),
-- image publication to Docker Hub (`tchevalleraud/easynetservices`) on `dev`
+- image publication to Docker Hub (`tchevalleraud91/easynetservices`) on `dev`
   and on releases.
 
 Publishing requires the `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` repository

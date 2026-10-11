@@ -120,7 +120,7 @@ The same image can run in three roles:
 - [Semantic Versioning](https://semver.org/): `MAJOR.MINOR.PATCH`.
 - Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/),
   which drives the automatic changelog and version bump.
-- Docker images published on Docker Hub as `tchevalleraud/easynetservices`:
+- Docker images published on Docker Hub as `tchevalleraud91/easynetservices`:
 
 | Event | Image tags |
 |---|---|

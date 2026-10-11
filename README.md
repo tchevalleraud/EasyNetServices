@@ -26,7 +26,7 @@ docker run -d --name easynetservices \
   --network host \
   -v easynetservices-data:/data \
   --restart unless-stopped \
-  tchevalleraud/easynetservices:latest
+  tchevalleraud91/easynetservices:latest
 ```
 
 Or with Docker Compose, using the provided [compose.yaml](compose.yaml):

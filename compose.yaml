@@ -2,7 +2,7 @@
 # network mode.
 services:
   easynetservices:
-    image: tchevalleraud/easynetservices:latest
+    image: tchevalleraud91/easynetservices:latest
     container_name: easynetservices
     network_mode: host
     restart: unless-stopped

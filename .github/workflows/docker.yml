@@ -21,7 +21,7 @@ permissions:
   contents: read
 
 env:
-  IMAGE: docker.io/tchevalleraud/easynetservices
+  IMAGE: docker.io/tchevalleraud91/easynetservices
 
 jobs:
   build:
