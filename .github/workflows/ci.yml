@@ -30,7 +30,16 @@ jobs:
       - name: Vet
         run: go vet ./...
       - name: Test
-        run: go test ./...
+        run: |
+          set -o pipefail
+          go test ./... 2>&1 | tee test.log
+      - name: Report test failures
+        if: failure()
+        run: |
+          # Surface the failing tests as annotations, visible without opening the logs.
+          grep -E -- '--- FAIL|_test\.go:[0-9]+|^FAIL|panic:' test.log | head -30 | while IFS= read -r line; do
+            echo "::error title=go test::${line}"
+          done
 
   frontend:
     name: Frontend
