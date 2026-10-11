@@ -65,6 +65,22 @@ The container is configured through environment variables:
 | `ENS_TLS_KEY` | | Path to the private key file when `ENS_TLS_MODE=custom`. |
 | `ENS_SESSION_TTL` | `12h` | Lifetime of a web session, extended while it is in use. |
 | `ENS_LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error`. |
+| `ENS_NTP_CLOCK_CONTROL` | `false` | Let the NTP server discipline the host clock. Requires `--cap-add SYS_TIME`. |
+
+### Ports
+
+| Port | Service |
+|---|---|
+| `8443/tcp` | Web interface and API |
+| `123/udp` | NTP |
+
+### NTP and the host clock
+
+The container shares the clock of the host. By default the NTP server only
+serves time: it tracks its upstream sources but never adjusts the clock, which
+should be synchronized by the host itself. To let EasyNetServices synchronize
+the host clock instead, set `ENS_NTP_CLOCK_CONTROL=true` and add the `SYS_TIME`
+capability (`--cap-add SYS_TIME`, or `cap_add: [SYS_TIME]` with Compose).
 
 ### Lost password
 
