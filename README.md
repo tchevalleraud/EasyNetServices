@@ -26,4 +26,4 @@ development workflow.
 
 ## License
 
-To be defined.
+Released under the [Apache License 2.0](LICENSE).

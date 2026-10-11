@@ -1,6 +1,6 @@
 # EasyNetServices — Project Definition
 
-> Status: **draft** — under review, not yet frozen.
+> Status: **approved** — changes to this document go through a pull request.
 
 ## 1. Vision
 
@@ -120,7 +120,7 @@ The same image can run in three roles:
 - [Semantic Versioning](https://semver.org/): `MAJOR.MINOR.PATCH`.
 - Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/),
   which drives the automatic changelog and version bump.
-- Docker images published on Docker Hub:
+- Docker images published on Docker Hub as `tchevalleraud/easynetservices`:
 
 | Event | Image tags |
 |---|---|
@@ -129,7 +129,6 @@ The same image can run in three roles:
 
 See [CONTRIBUTING.md](../CONTRIBUTING.md) for the development workflow.
 
-## 5. Open questions
+## 5. License
 
-- License to confirm.
-- Docker Hub repository name.
+EasyNetServices is released under the [Apache License 2.0](../LICENSE).

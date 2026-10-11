@@ -12,7 +12,9 @@ All code, comments, commit messages and documentation are written in **English**
 | `dev` | Integration branch. All development lands here. |
 | `feat/*`, `fix/*`, `chore/*`… | Short-lived branches created from `dev`, merged back into `dev` through a pull request. |
 
-Releases are made by merging `dev` into `main`.
+Releases are made by merging `dev` into `main` through a pull request.
+Direct pushes to `main` are not allowed; direct pushes to `dev` are tolerated
+during the early phase of the project.
 
 ## Commit messages
 
