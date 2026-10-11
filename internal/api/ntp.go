@@ -26,6 +26,10 @@ func (s *Server) handlePutNTPConfig(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "apply_failed", err.Error())
 		return
 	}
+	if errors.Is(err, ntp.ErrRejected) {
+		writeError(w, http.StatusBadRequest, "config_rejected", err.Error())
+		return
+	}
 	if err != nil {
 		s.writeUpdateError(w, r, err)
 		return

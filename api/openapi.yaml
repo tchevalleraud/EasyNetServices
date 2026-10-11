@@ -182,7 +182,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/NtpConfig" }
         "400":
-          description: Invalid configuration (`validation_failed` with field details)
+          description: Invalid configuration (`validation_failed` with field details, or `config_rejected` by chrony)
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
