@@ -1,0 +1,16 @@
+# Example deployment. DHCP needs direct access to the network, hence the host
+# network mode.
+services:
+  easynetservices:
+    image: tchevalleraud/easynetservices:latest
+    container_name: easynetservices
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      ENS_ROLE: standalone
+      ENS_LISTEN: ":8443"
+    volumes:
+      - easynetservices-data:/data
+
+volumes:
+  easynetservices-data:

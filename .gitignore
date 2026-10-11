@@ -1,0 +1,15 @@
+# Build output
+/bin/
+/web/dist/
+
+# Dependencies
+/web/node_modules/
+
+# Local data
+/data/
+
+# Editors and OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
