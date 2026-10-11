@@ -6,6 +6,7 @@ import { Link } from 'react-router'
 import { api } from '../api/client'
 import type { SystemInfo } from '../api/types'
 import { ServiceStateBadge } from '../components/ServiceStateBadge'
+import { useServerTime } from '../hooks/useServerTime'
 import { formatDuration } from '../utils/format'
 import { useNtpStatus } from './ntp/queries'
 
@@ -92,6 +93,7 @@ function InfoRow({ label, value }: { label: string; value?: string }) {
 }
 
 export function DashboardPage() {
+  const { data: time, serverNow } = useServerTime()
   const { data: system } = useQuery({
     queryKey: ['system'],
     queryFn: () => api.get<SystemInfo>('/system'),
@@ -130,6 +132,19 @@ export function DashboardPage() {
           <InfoRow label="Role" value={system?.role} />
           <InfoRow label="Hostname" value={system?.hostname} />
           <InfoRow label="Uptime" value={system && formatDuration(system.uptimeSeconds)} />
+          <InfoRow
+            label="Server time"
+            value={
+              time && serverNow
+                ? new Intl.DateTimeFormat('en-GB', {
+                    timeZone: time.timezone,
+                    dateStyle: 'medium',
+                    timeStyle: 'medium',
+                  }).format(serverNow)
+                : undefined
+            }
+          />
+          <InfoRow label="Time zone" value={time?.timezone} />
         </Stack>
       </Card>
     </Stack>

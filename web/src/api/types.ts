@@ -66,3 +66,16 @@ export interface NtpStatus {
   tracking: NtpTracking | null
   sources: NtpSourceStatus[]
 }
+
+export interface SystemSettings {
+  timezone: string
+}
+
+export interface SystemTime {
+  unixMillis: number
+  timezone: string
+  abbreviation: string
+  utcOffsetSeconds: number
+  formattedLocal: string
+  formattedUtc: string
+}

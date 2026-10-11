@@ -2,6 +2,7 @@ import { Alert, Badge, Card, Group, SimpleGrid, Skeleton, Stack, Table, Text, To
 import { IconInfoCircle } from '@tabler/icons-react'
 import type { ReactNode } from 'react'
 import type { NtpSourceStatus } from '../../api/types'
+import { ServerClock } from '../../components/ServerClock'
 import { ServiceStateBadge } from '../../components/ServiceStateBadge'
 import { formatDuration, formatSeconds } from '../../utils/format'
 import { useNtpStatus } from './queries'
@@ -110,6 +111,8 @@ export function NtpStatusPanel() {
 
   return (
     <Stack>
+      <ServerClock />
+
       {status.state === 'unavailable' && (
         <Alert color="yellow" icon={<IconInfoCircle size={18} />}>
           The NTP daemon cannot be managed: the server is not running inside the EasyNetServices container.
