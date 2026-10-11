@@ -4,6 +4,7 @@ import { AppLayout } from './components/AppLayout'
 import { ChangePasswordPage } from './pages/ChangePasswordPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { LoginPage } from './pages/LoginPage'
+import { NtpPage } from './pages/ntp/NtpPage'
 
 export function App() {
   return (
@@ -25,6 +26,7 @@ export function App() {
         }
       >
         <Route index element={<DashboardPage />} />
+        <Route path="ntp" element={<NtpPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

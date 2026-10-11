@@ -20,6 +20,7 @@ security:
 tags:
   - name: auth
   - name: system
+  - name: ntp
 
 paths:
   /version:
@@ -112,6 +113,98 @@ paths:
         "401": { $ref: "#/components/responses/Error" }
         "403": { $ref: "#/components/responses/Error" }
 
+  /system/settings:
+    get:
+      tags: [system]
+      summary: Get the system settings
+      responses:
+        "200":
+          description: System settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SystemSettings" }
+        "401": { $ref: "#/components/responses/Error" }
+    put:
+      tags: [system]
+      summary: Replace the system settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SystemSettings" }
+      responses:
+        "200":
+          description: Settings applied
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SystemSettings" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+
+  /system/time:
+    get:
+      tags: [system]
+      summary: Get the current server time
+      responses:
+        "200":
+          description: Server time in the configured time zone
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SystemTime" }
+        "401": { $ref: "#/components/responses/Error" }
+
+  /ntp/config:
+    get:
+      tags: [ntp]
+      summary: Get the NTP configuration
+      responses:
+        "200":
+          description: NTP configuration
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NtpConfig" }
+        "401": { $ref: "#/components/responses/Error" }
+    put:
+      tags: [ntp]
+      summary: Replace and apply the NTP configuration
+      description: |
+        The whole configuration is replaced. Networks are normalized (host bits
+        cleared). The NTP daemon is restarted when the configuration changes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NtpConfig" }
+      responses:
+        "200":
+          description: Configuration applied
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NtpConfig" }
+        "400":
+          description: Invalid configuration (`validation_failed` with field details)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "500":
+          description: Configuration saved but not applied (`apply_failed`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /ntp/status:
+    get:
+      tags: [ntp]
+      summary: Get the runtime state of the NTP server
+      responses:
+        "200":
+          description: NTP status
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NtpStatus" }
+        "401": { $ref: "#/components/responses/Error" }
+
 components:
   securitySchemes:
     session:
@@ -137,6 +230,15 @@ components:
           properties:
             code: { type: string, example: invalid_credentials }
             message: { type: string }
+            details:
+              type: array
+              description: Invalid fields, for `validation_failed` errors.
+              items:
+                type: object
+                required: [field, message]
+                properties:
+                  field: { type: string, example: "sources[0].address" }
+                  message: { type: string }
 
     Version:
       type: object
@@ -162,3 +264,92 @@ components:
         role: { type: string, enum: [standalone, controller, node] }
         hostname: { type: string }
         uptimeSeconds: { type: integer }
+
+    NtpConfig:
+      type: object
+      required: [enabled, sources, access, localStratum]
+      properties:
+        enabled: { type: boolean }
+        sources:
+          type: array
+          maxItems: 32
+          items:
+            type: object
+            required: [type, address, iburst, prefer, nts]
+            properties:
+              type: { type: string, enum: [server, pool] }
+              address: { type: string, description: Hostname or IP address, example: pool.ntp.org }
+              iburst: { type: boolean, description: Faster initial synchronization }
+              prefer: { type: boolean, description: Prefer this source over the others }
+              nts: { type: boolean, description: Authenticate with Network Time Security }
+        access:
+          type: array
+          maxItems: 256
+          description: Client networks allowed or denied; clients matching no rule are denied.
+          items:
+            type: object
+            required: [action, network]
+            properties:
+              action: { type: string, enum: [allow, deny] }
+              network: { type: string, example: 192.168.1.0/24 }
+        localStratum:
+          type: integer
+          minimum: 0
+          maximum: 15
+          description: Stratum served from the local clock when no source is reachable; 0 disables it.
+
+    NtpStatus:
+      type: object
+      required: [state, synchronized, tracking, sources]
+      properties:
+        state: { type: string, enum: [running, stopped, disabled, unavailable] }
+        synchronized: { type: boolean }
+        tracking:
+          oneOf:
+            - type: "null"
+            - type: object
+              properties:
+                referenceId: { type: string }
+                reference: { type: string }
+                stratum: { type: integer }
+                offsetSeconds: { type: number }
+                rootDelaySeconds: { type: number }
+                rootDispersionSeconds: { type: number }
+                updateIntervalSeconds: { type: number }
+                leapStatus: { type: string }
+        sources:
+          type: array
+          items:
+            type: object
+            properties:
+              mode: { type: string, enum: [server, peer, refclock, unknown] }
+              state:
+                type: string
+                enum: [selected, combined, not-combined, unreachable, falseticker, too-variable, unknown]
+              address: { type: string }
+              stratum: { type: integer }
+              pollSeconds: { type: integer }
+              reach: { type: string, description: Reachability register in octal }
+              lastRxSeconds: { type: integer, description: "-1 when no sample was received" }
+              offsetSeconds: { type: number }
+              errorSeconds: { type: number }
+
+    SystemSettings:
+      type: object
+      required: [timezone]
+      properties:
+        timezone:
+          type: string
+          description: IANA time zone used to display dates and in the logs.
+          example: Europe/Paris
+
+    SystemTime:
+      type: object
+      required: [unixMillis, timezone, abbreviation, utcOffsetSeconds, formattedLocal, formattedUtc]
+      properties:
+        unixMillis: { type: integer, format: int64 }
+        timezone: { type: string, example: Europe/Paris }
+        abbreviation: { type: string, example: CEST }
+        utcOffsetSeconds: { type: integer, example: 7200 }
+        formattedLocal: { type: string, format: date-time }
+        formattedUtc: { type: string, format: date-time }
