@@ -21,6 +21,7 @@ tags:
   - name: auth
   - name: system
   - name: ntp
+  - name: dns
 
 paths:
   /version:
@@ -152,6 +153,149 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/SystemTime" }
         "401": { $ref: "#/components/responses/Error" }
+
+  /dns/settings:
+    get:
+      tags: [dns]
+      summary: Get the resolver settings
+      responses:
+        "200":
+          description: Resolver settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DnsSettings" }
+        "401": { $ref: "#/components/responses/Error" }
+    put:
+      tags: [dns]
+      summary: Replace and apply the resolver settings
+      description: |
+        When the resolver is enabled while stopped, port 53 is checked on the
+        listen addresses first; a busy port is reported as a validation error.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DnsSettings" }
+      responses:
+        "200":
+          description: Settings applied
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DnsSettings" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "500": { $ref: "#/components/responses/Error" }
+
+  /dns/status:
+    get:
+      tags: [dns]
+      summary: Get the runtime state of the DNS services
+      responses:
+        "200":
+          description: DNS status
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DnsStatus" }
+        "401": { $ref: "#/components/responses/Error" }
+
+  /dns/zones:
+    get:
+      tags: [dns]
+      summary: List the local zones
+      responses:
+        "200":
+          description: Local zones
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/DnsZone" }
+        "401": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+    post:
+      tags: [dns]
+      summary: Create a local zone
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, example: home.lan }
+                nameservers:
+                  type: array
+                  items: { type: string, example: ns1.home.lan }
+      responses:
+        "201":
+          description: Zone created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DnsZoneDetail" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
+  /dns/zones/{zone}:
+    parameters:
+      - { name: zone, in: path, required: true, schema: { type: string }, example: home.lan }
+    get:
+      tags: [dns]
+      summary: Get a local zone with its records
+      responses:
+        "200":
+          description: Zone
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DnsZoneDetail" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    delete:
+      tags: [dns]
+      summary: Delete a local zone and its records
+      responses:
+        "204": { description: Zone deleted }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /dns/zones/{zone}/rrsets:
+    parameters:
+      - { name: zone, in: path, required: true, schema: { type: string } }
+    put:
+      tags: [dns]
+      summary: Create or replace a record set
+      description: |
+        Host names without a dot (and "@") in CNAME, NS, MX and SRV values are
+        relative to the zone; TXT values are quoted automatically. SOA records
+        are maintained automatically.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DnsRRSet" }
+      responses:
+        "200":
+          description: Record set saved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DnsRRSet" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /dns/zones/{zone}/rrsets/{name}/{type}:
+    parameters:
+      - { name: zone, in: path, required: true, schema: { type: string } }
+      - { name: name, in: path, required: true, schema: { type: string }, example: nas.home.lan }
+      - { name: type, in: path, required: true, schema: { type: string }, example: A }
+    delete:
+      tags: [dns]
+      summary: Delete a record set
+      responses:
+        "204": { description: Record set deleted }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
 
   /ntp/config:
     get:
@@ -353,3 +497,92 @@ components:
         utcOffsetSeconds: { type: integer, example: 7200 }
         formattedLocal: { type: string, format: date-time }
         formattedUtc: { type: string, format: date-time }
+
+    DnsSettings:
+      type: object
+      required: [enabled, listenAddresses, allowFrom, resolution, forwarders, forwardZones, dnssec]
+      properties:
+        enabled: { type: boolean }
+        listenAddresses:
+          type: array
+          description: IP addresses to listen on; empty means all.
+          items: { type: string, example: 192.168.1.2 }
+        allowFrom:
+          type: array
+          description: Client networks or addresses allowed to query the resolver.
+          items: { type: string, example: 192.168.1.0/24 }
+        resolution: { type: string, enum: [recursive, forward] }
+        forwarders:
+          type: array
+          items:
+            type: object
+            required: [address, tls]
+            properties:
+              address: { type: string, example: 9.9.9.9 }
+              tls: { type: boolean, description: DNS over TLS on port 853 }
+        forwardZones:
+          type: array
+          items:
+            type: object
+            required: [name, servers, recursive]
+            properties:
+              name: { type: string, example: corp.example.com }
+              servers:
+                type: array
+                items: { type: string, example: "10.0.0.10:53" }
+              recursive: { type: boolean, description: The servers are resolvers rather than authoritative servers }
+        dnssec: { type: string, enum: [off, process, validate] }
+
+    DnsStatus:
+      type: object
+      required: [authoritative, recursor, stats]
+      properties:
+        authoritative: { type: string, enum: [running, stopped, disabled, unavailable] }
+        recursor: { type: string, enum: [running, stopped, disabled, unavailable] }
+        stats:
+          oneOf:
+            - type: "null"
+            - type: object
+              properties:
+                questions: { type: integer }
+                cacheHits: { type: integer }
+                cacheMisses: { type: integer }
+                cacheEntries: { type: integer }
+                noErrorAnswers: { type: integer }
+                nxdomainAnswers: { type: integer }
+                servfailAnswers: { type: integer }
+                uptimeSeconds: { type: integer }
+
+    DnsZone:
+      type: object
+      required: [name, kind, serial]
+      properties:
+        name: { type: string, example: home.lan }
+        kind: { type: string, example: Native }
+        serial: { type: integer }
+
+    DnsZoneDetail:
+      allOf:
+        - $ref: "#/components/schemas/DnsZone"
+        - type: object
+          required: [rrsets]
+          properties:
+            rrsets:
+              type: array
+              items: { $ref: "#/components/schemas/DnsRRSet" }
+
+    DnsRRSet:
+      type: object
+      required: [name, type, ttl, records]
+      properties:
+        name: { type: string, example: nas.home.lan }
+        type: { type: string, enum: [A, AAAA, CAA, CNAME, MX, NS, PTR, SRV, TXT, SOA] }
+        ttl: { type: integer, minimum: 1, example: 3600 }
+        records:
+          type: array
+          items:
+            type: object
+            required: [content]
+            properties:
+              content: { type: string, example: 192.168.1.10 }
+              disabled: { type: boolean }

@@ -73,7 +73,20 @@ The container is configured through environment variables:
 | Port | Service |
 |---|---|
 | `8443/tcp` | Web interface and API |
+| `53/udp`, `53/tcp` | DNS |
 | `123/udp` | NTP |
+
+The DNS server also uses `127.0.0.1:15353` and `127.0.0.1:18081` internally
+(loopback only); these ports must be free on the host.
+
+### DNS and port 53 on the host
+
+The DNS resolver is disabled until it is enabled in the web interface. Many
+Linux distributions run `systemd-resolved`, which already listens on port 53 of
+`127.0.0.53`: listening on all addresses then fails. Either set the listen
+addresses of the resolver to the IP of the LAN interface, or disable the stub
+listener of `systemd-resolved` (`DNSStubListener=no` in
+`/etc/systemd/resolved.conf`).
 
 ### NTP and the host clock
 
