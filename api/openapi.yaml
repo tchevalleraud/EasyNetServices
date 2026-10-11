@@ -1,0 +1,164 @@
+openapi: 3.1.0
+info:
+  title: EasyNetServices API
+  version: v1
+  description: |
+    REST API of EasyNetServices. The web interface uses this API exclusively.
+
+    Authentication uses a session cookie obtained from `POST /auth/login`.
+    Until the password of the account has been changed, only the endpoints of
+    the `auth` group are accessible; other endpoints return `403` with the
+    `password_change_required` error code.
+  license:
+    name: Apache-2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+servers:
+  - url: /api/v1
+security:
+  - session: []
+
+tags:
+  - name: auth
+  - name: system
+
+paths:
+  /version:
+    get:
+      tags: [system]
+      summary: Get build information
+      security: []
+      responses:
+        "200":
+          description: Build information
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Version" }
+
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: Open a session
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username: { type: string }
+                password: { type: string, format: password }
+      responses:
+        "200":
+          description: Session opened; the `ens_session` cookie is set.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+
+  /auth/logout:
+    post:
+      tags: [auth]
+      summary: Close the current session
+      responses:
+        "204": { description: Session closed }
+        "401": { $ref: "#/components/responses/Error" }
+
+  /auth/me:
+    get:
+      tags: [auth]
+      summary: Get the authenticated user
+      responses:
+        "200":
+          description: Authenticated user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "401": { $ref: "#/components/responses/Error" }
+
+  /auth/password:
+    post:
+      tags: [auth]
+      summary: Change the password of the authenticated user
+      description: All other sessions of the user are closed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currentPassword, newPassword]
+              properties:
+                currentPassword: { type: string, format: password }
+                newPassword: { type: string, format: password, minLength: 8, maxLength: 256 }
+      responses:
+        "204": { description: Password changed }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+
+  /system:
+    get:
+      tags: [system]
+      summary: Get system information
+      responses:
+        "200":
+          description: System information
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/System" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+
+components:
+  securitySchemes:
+    session:
+      type: apiKey
+      in: cookie
+      name: ens_session
+
+  responses:
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string, example: invalid_credentials }
+            message: { type: string }
+
+    Version:
+      type: object
+      required: [version, commit, date]
+      properties:
+        version: { type: string, example: 0.1.0 }
+        commit: { type: string }
+        date: { type: string }
+
+    User:
+      type: object
+      required: [username, source, mustChangePassword]
+      properties:
+        username: { type: string, example: admin }
+        source: { type: string, example: local }
+        mustChangePassword: { type: boolean }
+
+    System:
+      type: object
+      required: [version, role, hostname, uptimeSeconds]
+      properties:
+        version: { type: string }
+        role: { type: string, enum: [standalone, controller, node] }
+        hostname: { type: string }
+        uptimeSeconds: { type: integer }

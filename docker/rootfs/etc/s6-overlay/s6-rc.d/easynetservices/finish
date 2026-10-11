@@ -1,0 +1,8 @@
+#!/bin/sh
+# When the server exits on its own with an error (e.g. invalid configuration),
+# stop the container so the error is visible and the restart policy applies.
+# 256 means the process was killed by a signal, typically during shutdown.
+if [ "$1" -ne 0 ] && [ "$1" -ne 256 ]; then
+  echo "$1" > /run/s6-linux-init-container-results/exitcode
+  exec /run/s6/basedir/bin/halt
+fi
