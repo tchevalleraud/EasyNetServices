@@ -39,25 +39,25 @@ func execRunner(ctx context.Context, name string, args ...string) ([]byte, error
 
 // Manager stores the NTP configuration and applies it to chronyd.
 type Manager struct {
-	store      *store.Store
-	supervisor supervisor.Supervisor
-	run        Runner
-	log        *slog.Logger
-	confFile   string
-	stateDir   string
-	mu         sync.Mutex
+	store    *store.Store
+	sup      supervisor.Supervisor
+	run      Runner
+	log      *slog.Logger
+	confFile string
+	stateDir string
+	mu       sync.Mutex
 }
 
 // NewManager returns a manager writing the chrony files under dataDir/chrony.
 func NewManager(st *store.Store, sup supervisor.Supervisor, dataDir string, log *slog.Logger) *Manager {
 	dir := filepath.Join(dataDir, "chrony")
 	return &Manager{
-		store:      st,
-		supervisor: sup,
-		run:        execRunner,
-		log:        log,
-		confFile:   filepath.Join(dir, "chrony.conf"),
-		stateDir:   filepath.Join(dir, "state"),
+		store:    st,
+		sup:      sup,
+		run:      execRunner,
+		log:      log,
+		confFile: filepath.Join(dir, "chrony.conf"),
+		stateDir: filepath.Join(dir, "state"),
 	}
 }
 
@@ -143,21 +143,28 @@ func (m *Manager) check(ctx context.Context, content string) error {
 
 // apply writes the configuration file and brings chronyd to the wanted state.
 func (m *Manager) apply(ctx context.Context, cfg Config) error {
+	// Stop a disabled chronyd before writing its configuration, so that it
+	// does not start on it in the meantime.
+	if !cfg.Enabled && m.sup.Available() {
+		if err := m.sup.Down(ctx, serviceName); err != nil {
+			return err
+		}
+	}
 	changed, err := m.writeConfig(Render(cfg, m.stateDir))
 	if err != nil {
 		return err
 	}
-	if !m.supervisor.Available() {
+	if !m.sup.Available() {
 		m.log.Warn("service supervision unavailable, chronyd is not managed")
 		return nil
 	}
 	if !cfg.Enabled {
-		return m.supervisor.Down(ctx, serviceName)
+		return nil
 	}
 	if changed {
-		return m.supervisor.Restart(ctx, serviceName)
+		return m.sup.Restart(ctx, serviceName)
 	}
-	return m.supervisor.Up(ctx, serviceName)
+	return m.sup.Up(ctx, serviceName)
 }
 
 // writeConfig atomically replaces the configuration file and reports whether
@@ -178,29 +185,29 @@ func (m *Manager) writeConfig(content string) (bool, error) {
 
 // Status returns the runtime state of chronyd.
 func (m *Manager) Status(ctx context.Context) (Status, error) {
-	status := Status{State: StateUnavailable, Sources: []SourceStatus{}}
+	status := Status{State: supervisor.StateUnavailable, Sources: []SourceStatus{}}
 
 	cfg, err := m.Config(ctx)
 	if err != nil {
 		return status, err
 	}
-	if !m.supervisor.Available() {
+	if !m.sup.Available() {
 		return status, nil
 	}
 	if !cfg.Enabled {
-		status.State = StateDisabled
+		status.State = supervisor.StateDisabled
 		return status, nil
 	}
 
-	up, err := m.supervisor.IsUp(ctx, serviceName)
+	up, err := m.sup.IsUp(ctx, serviceName)
 	if err != nil {
 		return status, err
 	}
 	if !up {
-		status.State = StateStopped
+		status.State = supervisor.StateStopped
 		return status, nil
 	}
-	status.State = StateRunning
+	status.State = supervisor.StateRunning
 
 	// chronyd may still be starting; missing data is reported as unsynchronized.
 	if out, err := m.run(ctx, "chronyc", "-n", "-c", "tracking"); err == nil {

@@ -15,6 +15,7 @@ import (
 
 	"github.com/tchevalleraud/EasyNetServices/internal/auth"
 	"github.com/tchevalleraud/EasyNetServices/internal/config"
+	"github.com/tchevalleraud/EasyNetServices/internal/dns"
 	"github.com/tchevalleraud/EasyNetServices/internal/ntp"
 	"github.com/tchevalleraud/EasyNetServices/internal/store"
 	"github.com/tchevalleraud/EasyNetServices/internal/supervisor"
@@ -56,7 +57,13 @@ func newTestClient(t *testing.T) *testClient {
 	ntpMgr := ntp.NewManager(st, &supervisor.S6{ServiceDir: dir + "/no-s6"}, dir, log)
 	// Never run the chrony binaries that may be installed on the test machine.
 	ntpMgr.SetRunner(func(context.Context, string, ...string) ([]byte, error) { return nil, nil })
-	srv := httptest.NewServer(NewServer(cfg, st, authSvc, Services{System: system.NewManager(st, log), NTP: ntpMgr}, ui, log).Handler())
+	dnsMgr := dns.NewManager(st, &supervisor.S6{ServiceDir: dir + "/no-s6"}, dir, log)
+	if err := dnsMgr.Init(ctx); err != nil {
+		t.Fatal(err)
+	}
+	// No PowerDNS in tests: point the client to a closed port.
+	dnsMgr.SetAuthURL("http://127.0.0.1:1")
+	srv := httptest.NewServer(NewServer(cfg, st, authSvc, Services{System: system.NewManager(st, log), NTP: ntpMgr, DNS: dnsMgr}, ui, log).Handler())
 	t.Cleanup(srv.Close)
 
 	jar, _ := cookiejar.New(nil)
@@ -238,5 +245,28 @@ func TestSystemSettings(t *testing.T) {
 	status, body = c.do("GET", "/api/v1/system/time", "")
 	if status != http.StatusOK || body["timezone"] != "Asia/Tokyo" || body["utcOffsetSeconds"] != float64(9*3600) {
 		t.Fatalf("unexpected time: %d %v", status, body)
+	}
+}
+
+func TestDNSSettings(t *testing.T) {
+	c := newTestClient(t)
+	c.login()
+
+	status, body := c.do("GET", "/api/v1/dns/settings", "")
+	if status != http.StatusOK || body["enabled"] != false || body["resolution"] != "recursive" {
+		t.Fatalf("expected default settings, got %d %v", status, body)
+	}
+	status, body = c.do("PUT", "/api/v1/dns/settings",
+		`{"enabled":true,"listenAddresses":["bad"],"allowFrom":[],"resolution":"forward","forwarders":[],"forwardZones":[],"dnssec":"process"}`)
+	if status != http.StatusBadRequest || errorCode(body) != "validation_failed" {
+		t.Fatalf("expected validation_failed, got %d %v", status, body)
+	}
+	status, body = c.do("PUT", "/api/v1/dns/settings",
+		`{"enabled":true,"listenAddresses":[],"allowFrom":["192.168.1.0/24"],"resolution":"forward","forwarders":[{"address":"1.1.1.1","tls":true}],"forwardZones":[],"dnssec":"process"}`)
+	if status != http.StatusOK {
+		t.Fatalf("expected update to succeed, got %d %v", status, body)
+	}
+	if status, body = c.do("GET", "/api/v1/dns/zones", ""); status != http.StatusServiceUnavailable || errorCode(body) != "dns_unavailable" {
+		t.Fatalf("expected dns_unavailable without PowerDNS, got %d %v", status, body)
 	}
 }

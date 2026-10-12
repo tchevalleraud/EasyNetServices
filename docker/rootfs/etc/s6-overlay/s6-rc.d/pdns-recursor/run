@@ -1,0 +1,11 @@
+#!/command/with-contenv sh
+# PowerDNS Recursor, answering the clients. The management server generates
+# its configuration and starts, stops or reloads it.
+dir="${ENS_DATA_DIR:-/data}/pdns"
+
+until [ -f "$dir/recursor.yml" ]; do sleep 1; done
+
+mkdir -p /run/pdns-recursor
+chown pdns:pdns /run/pdns-recursor
+
+exec pdns_recursor --config-dir="$dir"

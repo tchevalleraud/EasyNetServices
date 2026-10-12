@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/tchevalleraud/EasyNetServices/internal/store"
+	"github.com/tchevalleraud/EasyNetServices/internal/supervisor"
 	"github.com/tchevalleraud/EasyNetServices/internal/validation"
 )
 
@@ -209,7 +210,7 @@ func TestManagerLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if status.State != StateRunning || !status.Synchronized || len(status.Sources) != 1 {
+	if status.State != supervisor.StateRunning || !status.Synchronized || len(status.Sources) != 1 {
 		t.Fatalf("unexpected status: %+v", status)
 	}
 
@@ -218,7 +219,7 @@ func TestManagerLifecycle(t *testing.T) {
 	if _, err := m.Update(ctx, cfg); err != nil {
 		t.Fatal(err)
 	}
-	if status, _ := m.Status(ctx); status.State != StateDisabled {
+	if status, _ := m.Status(ctx); status.State != supervisor.StateDisabled {
 		t.Fatalf("expected disabled state, got %s", status.State)
 	}
 	stored, _ := m.Config(ctx)

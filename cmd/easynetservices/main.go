@@ -20,6 +20,7 @@ import (
 	"github.com/tchevalleraud/EasyNetServices/internal/api"
 	"github.com/tchevalleraud/EasyNetServices/internal/auth"
 	"github.com/tchevalleraud/EasyNetServices/internal/config"
+	"github.com/tchevalleraud/EasyNetServices/internal/dns"
 	"github.com/tchevalleraud/EasyNetServices/internal/ntp"
 	"github.com/tchevalleraud/EasyNetServices/internal/store"
 	"github.com/tchevalleraud/EasyNetServices/internal/supervisor"
@@ -125,9 +126,20 @@ func serve() error {
 		log.Error("failed to apply NTP configuration", "error", err)
 	}
 
+	dnsMgr := dns.NewManager(st, sup, cfg.DataDir, log.With("service", "dns"))
+	if err := dnsMgr.Init(ctx); err != nil {
+		return fmt.Errorf("prepare DNS server: %w", err)
+	}
+	// The resolver waits for the authoritative server: start it in the background.
+	go func() {
+		if err := dnsMgr.StartResolver(ctx); err != nil {
+			log.Error("failed to apply DNS configuration", "error", err)
+		}
+	}()
+
 	srv := &http.Server{
 		Addr:              cfg.Listen,
-		Handler:           api.NewServer(cfg, st, authSvc, api.Services{System: sysMgr, NTP: ntpMgr}, web.FS(), log).Handler(),
+		Handler:           api.NewServer(cfg, st, authSvc, api.Services{System: sysMgr, NTP: ntpMgr, DNS: dnsMgr}, web.FS(), log).Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      60 * time.Second,

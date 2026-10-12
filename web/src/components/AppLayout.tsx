@@ -23,7 +23,7 @@ interface NavItem {
 // Service pages are listed but disabled until they are implemented.
 const navItems: NavItem[] = [
   { label: 'Dashboard', icon: IconDashboard, to: '/' },
-  { label: 'DNS', icon: IconWorldWww },
+  { label: 'DNS', icon: IconWorldWww, to: '/dns' },
   { label: 'DHCP', icon: IconNetwork },
   { label: 'NTP', icon: IconClock, to: '/ntp' },
 ]

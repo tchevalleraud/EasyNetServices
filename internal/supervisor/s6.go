@@ -78,3 +78,15 @@ func (s *S6) svc(ctx context.Context, name string, flags ...string) error {
 func (s *S6) path(name string) string {
 	return filepath.Join(s.ServiceDir, name)
 }
+
+// State is the state of a managed service, as reported by the API.
+type State string
+
+const (
+	StateRunning  State = "running"
+	StateStopped  State = "stopped"
+	StateDisabled State = "disabled"
+	// StateUnavailable means the service cannot be managed, e.g. when the
+	// server runs outside of the container.
+	StateUnavailable State = "unavailable"
+)

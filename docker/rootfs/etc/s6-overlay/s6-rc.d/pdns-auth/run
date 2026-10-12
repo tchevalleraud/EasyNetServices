@@ -1,0 +1,16 @@
+#!/command/with-contenv sh
+# PowerDNS Authoritative Server, hosting the local zones. It only listens on
+# the loopback interface: clients query the recursor, which forwards to it.
+data="${ENS_DATA_DIR:-/data}"
+dir="$data/pdns"
+
+until [ -f "$dir/pdns.conf" ]; do sleep 1; done
+
+if [ ! -f "$dir/pdns.sqlite3" ]; then
+  sqlite3 "$dir/pdns.sqlite3" < /usr/share/pdns-backend-sqlite3/schema/schema.sqlite3.sql
+fi
+# SQLite needs write access to the directory for its journal.
+chown pdns:pdns "$dir" "$dir"/pdns.sqlite3*
+chmod o+x "$data"
+
+exec pdns_server --config-dir="$dir" --daemon=no --guardian=no --disable-syslog --log-timestamp=no
