@@ -12,6 +12,7 @@ import (
 
 	"github.com/tchevalleraud/EasyNetServices/internal/auth"
 	"github.com/tchevalleraud/EasyNetServices/internal/config"
+	"github.com/tchevalleraud/EasyNetServices/internal/dhcp"
 	"github.com/tchevalleraud/EasyNetServices/internal/dns"
 	"github.com/tchevalleraud/EasyNetServices/internal/ntp"
 	"github.com/tchevalleraud/EasyNetServices/internal/store"
@@ -28,6 +29,7 @@ type Server struct {
 	auth         *auth.Service
 	ntp          *ntp.Manager
 	dns          *dns.Manager
+	dhcp         *dhcp.Manager
 	system       *system.Manager
 	ui           fs.FS
 	log          *slog.Logger
@@ -41,6 +43,7 @@ type Services struct {
 	System *system.Manager
 	NTP    *ntp.Manager
 	DNS    *dns.Manager
+	DHCP   *dhcp.Manager
 }
 
 // NewServer returns the HTTP server. ui contains the built web interface.
@@ -52,6 +55,7 @@ func NewServer(cfg *config.Config, st *store.Store, authSvc *auth.Service, svc S
 		ntp:          svc.NTP,
 		system:       svc.System,
 		dns:          svc.DNS,
+		dhcp:         svc.DHCP,
 		ui:           ui,
 		log:          log,
 		startedAt:    time.Now(),
@@ -87,6 +91,17 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("DELETE /api/v1/dns/zones/{zone}", s.requireAuth(s.handleDeleteZone, false))
 	mux.Handle("PUT /api/v1/dns/zones/{zone}/rrsets", s.requireAuth(s.handlePutRRSet, false))
 	mux.Handle("DELETE /api/v1/dns/zones/{zone}/rrsets/{name}/{type}", s.requireAuth(s.handleDeleteRRSet, false))
+	mux.Handle("GET /api/v1/dhcp/settings", s.requireAuth(s.handleGetDHCPSettings, false))
+	mux.Handle("PUT /api/v1/dhcp/settings", s.requireAuth(s.handlePutDHCPSettings, false))
+	mux.Handle("GET /api/v1/dhcp/status", s.requireAuth(s.handleGetDHCPStatus, false))
+	mux.Handle("GET /api/v1/dhcp/interfaces", s.requireAuth(s.handleListDHCPInterfaces, false))
+	mux.Handle("GET /api/v1/dhcp/{family}/subnets", s.requireAuth(s.handleListSubnets, false))
+	mux.Handle("POST /api/v1/dhcp/{family}/subnets", s.requireAuth(s.handleCreateSubnet, false))
+	mux.Handle("GET /api/v1/dhcp/{family}/subnets/{id}", s.requireAuth(s.handleGetSubnet, false))
+	mux.Handle("PUT /api/v1/dhcp/{family}/subnets/{id}", s.requireAuth(s.handlePutSubnet, false))
+	mux.Handle("DELETE /api/v1/dhcp/{family}/subnets/{id}", s.requireAuth(s.handleDeleteSubnet, false))
+	mux.Handle("GET /api/v1/dhcp/{family}/leases", s.requireAuth(s.handleListLeases, false))
+	mux.Handle("DELETE /api/v1/dhcp/{family}/leases/{address}", s.requireAuth(s.handleDeleteLease, false))
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "not_found", "endpoint not found")
 	})
