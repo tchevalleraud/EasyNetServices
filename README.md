@@ -30,6 +30,8 @@ sudo mkdir -p /etc/systemd/resolved.conf.d
 printf '[Resolve]\nDNSStubListener=no\n' | sudo tee /etc/systemd/resolved.conf.d/easynetservices.conf
 sudo ln -sf /run/systemd/resolve/resolv.conf /etc/resolv.conf
 sudo systemctl restart systemd-resolved
+# Docker and containerd keep using 127.0.0.53 until they are restarted
+sudo systemctl restart containerd docker
 ```
 
 Then start the container:
@@ -109,12 +111,17 @@ printf '[Resolve]\nDNSStubListener=no\n' | sudo tee /etc/systemd/resolved.conf.d
 # The stub resolver is gone: point the host at the upstream servers instead
 sudo ln -sf /run/systemd/resolve/resolv.conf /etc/resolv.conf
 sudo systemctl restart systemd-resolved
+# Docker and containerd keep using 127.0.0.53 until they are restarted
+sudo systemctl restart containerd docker
 ```
 
 `systemd-resolved` keeps running and the host keeps resolving names through the
 DNS servers of its network configuration (DHCP or netplan). The relink of
 `/etc/resolv.conf` matters: without it, the host would still query
-`127.0.0.53`, which no longer answers.
+`127.0.0.53`, which no longer answers. Docker and containerd read the resolver
+configuration once at startup and must be restarted as well, or pulling images
+fails with `lookup registry-1.docker.io on 127.0.0.53:53: connection refused`.
+Restarting Docker restarts the running containers.
 
 Check that nothing else listens on port 53 (`dnsmasq` started by libvirt or
 NetworkManager, for instance):
