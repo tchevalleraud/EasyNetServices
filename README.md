@@ -89,7 +89,9 @@ The container is configured through environment variables:
 |---|---|
 | `8443/tcp` | Web interface and API |
 | `53/udp`, `53/tcp` | DNS |
+| `67/udp` | DHCPv4 |
 | `123/udp` | NTP |
+| `547/udp` | DHCPv6 |
 
 The DNS server also uses `127.0.0.1:15353` and `127.0.0.1:18081` internally
 (loopback only); these ports must be free on the host.
@@ -141,6 +143,27 @@ sudo systemctl restart systemd-resolved
 **Keep the host resolver.** Without changing the host, set the listen addresses
 of the resolver (DNS → Resolver in the web interface) to the IP address of the
 LAN interface instead of all addresses.
+
+### DHCP
+
+The DHCP servers are disabled until an interface is chosen and the servers are
+enabled in the web interface (DHCP → Settings). DHCP relies on broadcast and
+link-local traffic, so the container must use the host network
+(`--network host`); it cannot be served through published ports.
+
+- Make sure no other DHCP server answers on the same network, such as the one
+  of the internet router.
+- Clients of other networks or VLANs are served through a DHCP relay (e.g.
+  `ip helper-address` on the router), with one subnet per network.
+- DHCPv6 clients learn their default router from the router advertisements of
+  the network, which must set the managed (M) flag for the clients to request
+  an address. A DHCPv6 subnet serving directly connected clients needs its
+  interface.
+- The DHCP servers run unprivileged with the `NET_RAW` and `NET_BIND_SERVICE`
+  capabilities, which Docker grants by default. Add them back if the container
+  runs with `--cap-drop ALL`.
+
+Leases are stored in the data volume and survive restarts and upgrades.
 
 ### NTP and the host clock
 

@@ -22,6 +22,7 @@ tags:
   - name: system
   - name: ntp
   - name: dns
+  - name: dhcp
 
 paths:
   /version:
@@ -297,6 +298,178 @@ paths:
         "401": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
 
+  /dhcp/settings:
+    get:
+      tags: [dhcp]
+      summary: Get the global DHCP settings
+      responses:
+        "200":
+          description: DHCP settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DhcpSettings" }
+        "401": { $ref: "#/components/responses/Error" }
+    put:
+      tags: [dhcp]
+      summary: Replace and apply the global DHCP settings
+      description: |
+        The configuration is checked by Kea before it is stored; a refusal is
+        returned as a `config_rejected` error. An interface used by a subnet
+        cannot be removed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DhcpSettings" }
+      responses:
+        "200":
+          description: Settings applied
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DhcpSettings" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "500": { $ref: "#/components/responses/Error" }
+
+  /dhcp/status:
+    get:
+      tags: [dhcp]
+      summary: Get the runtime state of the DHCP servers
+      responses:
+        "200":
+          description: DHCP status
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DhcpStatus" }
+        "401": { $ref: "#/components/responses/Error" }
+
+  /dhcp/interfaces:
+    get:
+      tags: [dhcp]
+      summary: List the network interfaces of the host
+      responses:
+        "200":
+          description: Interfaces, without the loopback
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/NetInterface" }
+        "401": { $ref: "#/components/responses/Error" }
+
+  /dhcp/{family}/subnets:
+    parameters:
+      - $ref: "#/components/parameters/DhcpFamily"
+    get:
+      tags: [dhcp]
+      summary: List the subnets of a family
+      responses:
+        "200":
+          description: Subnets, by ID
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/DhcpSubnet" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    post:
+      tags: [dhcp]
+      summary: Create a subnet
+      description: The ID is assigned by the server and the subnet must not overlap another one.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DhcpSubnet" }
+      responses:
+        "201":
+          description: Subnet created and applied
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DhcpSubnet" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "500": { $ref: "#/components/responses/Error" }
+
+  /dhcp/{family}/subnets/{id}:
+    parameters:
+      - $ref: "#/components/parameters/DhcpFamily"
+      - { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+    get:
+      tags: [dhcp]
+      summary: Get a subnet with its reservations
+      responses:
+        "200":
+          description: Subnet
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DhcpSubnet" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    put:
+      tags: [dhcp]
+      summary: Replace and apply a subnet, including its reservations
+      description: The ID of the subnet never changes. A running server reloads without losing its leases.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DhcpSubnet" }
+      responses:
+        "200":
+          description: Subnet saved and applied
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DhcpSubnet" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "500": { $ref: "#/components/responses/Error" }
+    delete:
+      tags: [dhcp]
+      summary: Delete a subnet and its reservations
+      responses:
+        "204": { description: Subnet deleted }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /dhcp/{family}/leases:
+    parameters:
+      - $ref: "#/components/parameters/DhcpFamily"
+    get:
+      tags: [dhcp]
+      summary: List the leases of a family
+      parameters:
+        - { name: subnet, in: query, schema: { type: integer }, description: Only the leases of this subnet ID }
+      responses:
+        "200":
+          description: Leases, by address
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/DhcpLease" }
+        "401": { $ref: "#/components/responses/Error" }
+        "503":
+          description: The server of the family is not running (`dhcp_unavailable`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /dhcp/{family}/leases/{address}:
+    parameters:
+      - $ref: "#/components/parameters/DhcpFamily"
+      - { name: address, in: path, required: true, schema: { type: string }, example: 192.168.1.120 }
+    delete:
+      tags: [dhcp]
+      summary: Delete a lease so that its address can be assigned again
+      responses:
+        "204": { description: Lease deleted }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+
   /ntp/config:
     get:
       tags: [ntp]
@@ -355,6 +528,14 @@ components:
       type: apiKey
       in: cookie
       name: ens_session
+
+  parameters:
+    DhcpFamily:
+      name: family
+      in: path
+      required: true
+      description: "`v4` for DHCPv4, `v6` for DHCPv6"
+      schema: { type: string, enum: [v4, v6] }
 
   responses:
     Error:
@@ -586,3 +767,119 @@ components:
             properties:
               content: { type: string, example: 192.168.1.10 }
               disabled: { type: boolean }
+
+    DhcpOptions:
+      type: object
+      description: Options sent to the clients. In a subnet, empty options inherit the global ones.
+      properties:
+        dnsServers:
+          type: array
+          items: { type: string, example: 192.168.1.2 }
+        domainName: { type: string, description: DHCPv4 only, example: home.lan }
+        domainSearch:
+          type: array
+          items: { type: string, example: home.lan }
+        ntpServers:
+          type: array
+          description: NTP servers in DHCPv4, SNTP servers in DHCPv6.
+          items: { type: string, example: 192.168.1.2 }
+
+    DhcpFamilySettings:
+      type: object
+      required: [enabled, validLifetime, preferredLifetime, options]
+      properties:
+        enabled: { type: boolean }
+        validLifetime: { type: integer, minimum: 60, description: Lease time in seconds, example: 86400 }
+        preferredLifetime: { type: integer, description: DHCPv6 preferred lifetime in seconds; 0 in DHCPv4, example: 43200 }
+        options: { $ref: "#/components/schemas/DhcpOptions" }
+
+    DhcpSettings:
+      type: object
+      required: [interfaces, dhcpv4, dhcpv6]
+      properties:
+        interfaces:
+          type: array
+          description: Network interfaces the servers listen on.
+          items: { type: string, example: eth0 }
+        dhcpv4: { $ref: "#/components/schemas/DhcpFamilySettings" }
+        dhcpv6: { $ref: "#/components/schemas/DhcpFamilySettings" }
+
+    DhcpReservation:
+      type: object
+      required: [ipAddress]
+      properties:
+        hwAddress: { type: string, example: "00:11:22:33:44:55" }
+        duid: { type: string, description: DHCPv6 only; set either it or hwAddress, example: "00:01:00:01:2c:5f:3c:29:00:11:22:33:44:55" }
+        ipAddress: { type: string, example: 192.168.1.10 }
+        hostname: { type: string, example: nas }
+        description: { type: string }
+
+    DhcpSubnet:
+      type: object
+      required: [subnet]
+      properties:
+        id: { type: integer, readOnly: true, example: 1 }
+        subnet: { type: string, example: 192.168.1.0/24 }
+        description: { type: string }
+        interface:
+          type: string
+          description: Interface of the directly connected clients; required in DHCPv6 unless the clients are behind a relay.
+          example: eth0
+        pools:
+          type: array
+          items: { type: string, example: 192.168.1.100 - 192.168.1.199 }
+        gateway: { type: string, description: DHCPv4 only, example: 192.168.1.1 }
+        validLifetime: { type: integer, description: Lease time in seconds; 0 inherits the global one }
+        options: { $ref: "#/components/schemas/DhcpOptions" }
+        reservations:
+          type: array
+          items: { $ref: "#/components/schemas/DhcpReservation" }
+
+    DhcpLease:
+      type: object
+      properties:
+        address: { type: string, example: 192.168.1.120 }
+        hwAddress: { type: string }
+        duid: { type: string }
+        hostname: { type: string }
+        subnetId: { type: integer }
+        state: { type: string, enum: [active, declined, expired, released, registered, unknown] }
+        expires: { type: string, format: date-time }
+        reserved: { type: boolean, description: The address matches a reservation of the client }
+
+    DhcpFamilyStatus:
+      type: object
+      properties:
+        state: { type: string, enum: [running, stopped, disabled, unavailable] }
+        socketErrors:
+          type: array
+          description: Why the server cannot listen on an interface.
+          items: { type: string }
+        subnets:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: integer }
+              subnet: { type: string }
+              total: { type: number, description: Size of the pools, which can exceed 64-bit integers in IPv6 }
+              assigned: { type: number }
+              declined: { type: number }
+        packetsReceived: { type: number }
+        packetsSent: { type: number }
+
+    DhcpStatus:
+      type: object
+      properties:
+        dhcpv4: { $ref: "#/components/schemas/DhcpFamilyStatus" }
+        dhcpv6: { $ref: "#/components/schemas/DhcpFamilyStatus" }
+
+    NetInterface:
+      type: object
+      properties:
+        name: { type: string, example: eth0 }
+        hwAddress: { type: string }
+        up: { type: boolean }
+        addresses:
+          type: array
+          items: { type: string, example: 192.168.1.2/24 }

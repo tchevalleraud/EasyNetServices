@@ -93,7 +93,7 @@ The same image can run in three roles:
 |---|---|---|
 | Authoritative DNS | **PowerDNS Authoritative Server** | Native REST API, SQL backend, RFC 2136 dynamic updates with TSIG. |
 | Recursive DNS | **PowerDNS Recursor** | Native RPZ support (DNS firewall), per-zone forwarding, REST API. Listens on port 53 and forwards hosted zones to the authoritative server internally. |
-| DHCPv4 / DHCPv6 | **ISC Kea** | Modern successor of ISC DHCP, JSON configuration, management API, built-in HA, DHCP-DDNS daemon. |
+| DHCPv4 / DHCPv6 | **ISC Kea** (3.2, official ISC repositories) | Modern successor of ISC DHCP, JSON configuration, management API, built-in HA, DHCP-DDNS daemon. |
 | NTP | **chrony** | Lightweight, accurate, default NTP implementation on most Linux distributions. |
 
 ### 3.2 Management layer
