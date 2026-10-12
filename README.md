@@ -21,6 +21,19 @@ configure and monitor them without editing configuration files by hand.
 
 ## Quick start
 
+On a Linux host running `systemd-resolved` (Ubuntu, Debian, Fedora…), free
+port 53 first so that EasyNetServices can serve DNS on every address (see
+[DNS and port 53 on the host](#dns-and-port-53-on-the-host)):
+
+```sh
+sudo mkdir -p /etc/systemd/resolved.conf.d
+printf '[Resolve]\nDNSStubListener=no\n' | sudo tee /etc/systemd/resolved.conf.d/easynetservices.conf
+sudo ln -sf /run/systemd/resolve/resolv.conf /etc/resolv.conf
+sudo systemctl restart systemd-resolved
+```
+
+Then start the container:
+
 ```sh
 docker run -d --name easynetservices \
   --network host \
@@ -82,11 +95,45 @@ The DNS server also uses `127.0.0.1:15353` and `127.0.0.1:18081` internally
 ### DNS and port 53 on the host
 
 The DNS resolver is disabled until it is enabled in the web interface. Many
-Linux distributions run `systemd-resolved`, which already listens on port 53 of
-`127.0.0.53`: listening on all addresses then fails. Either set the listen
-addresses of the resolver to the IP of the LAN interface, or disable the stub
-listener of `systemd-resolved` (`DNSStubListener=no` in
-`/etc/systemd/resolved.conf`).
+Linux distributions run `systemd-resolved`, whose stub resolver already listens
+on port 53 of `127.0.0.53`: listening on all addresses then fails with
+"port 53 is not available". There are two ways around it.
+
+**Let EasyNetServices own port 53 (recommended).** Disable the stub listener of
+`systemd-resolved`, as shown in the [quick start](#quick-start):
+
+```sh
+# Stop systemd-resolved from listening on 127.0.0.53:53
+sudo mkdir -p /etc/systemd/resolved.conf.d
+printf '[Resolve]\nDNSStubListener=no\n' | sudo tee /etc/systemd/resolved.conf.d/easynetservices.conf
+# The stub resolver is gone: point the host at the upstream servers instead
+sudo ln -sf /run/systemd/resolve/resolv.conf /etc/resolv.conf
+sudo systemctl restart systemd-resolved
+```
+
+`systemd-resolved` keeps running and the host keeps resolving names through the
+DNS servers of its network configuration (DHCP or netplan). The relink of
+`/etc/resolv.conf` matters: without it, the host would still query
+`127.0.0.53`, which no longer answers.
+
+Check that nothing else listens on port 53 (`dnsmasq` started by libvirt or
+NetworkManager, for instance):
+
+```sh
+sudo ss -lntup 'sport = :53'
+```
+
+To revert:
+
+```sh
+sudo rm /etc/systemd/resolved.conf.d/easynetservices.conf
+sudo ln -sf ../run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
+sudo systemctl restart systemd-resolved
+```
+
+**Keep the host resolver.** Without changing the host, set the listen addresses
+of the resolver (DNS → Resolver in the web interface) to the IP address of the
+LAN interface instead of all addresses.
 
 ### NTP and the host clock
 

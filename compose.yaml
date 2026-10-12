@@ -1,5 +1,6 @@
 # Example deployment. DHCP needs direct access to the network, hence the host
-# network mode.
+# network mode. To serve DNS on every address, free port 53 on the host first
+# (see "DNS and port 53 on the host" in the README).
 services:
   easynetservices:
     image: tchevalleraud91/easynetservices:latest
