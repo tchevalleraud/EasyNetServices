@@ -7,6 +7,8 @@ ARG S6_OVERLAY_VERSION=3.2.3.2
 # PowerDNS release series, from the official repositories.
 ARG PDNS_AUTH_SERIES=51
 ARG PDNS_REC_SERIES=54
+# Kea release series, from the official ISC repositories.
+ARG KEA_SERIES=3-2
 
 # --- Web interface ----------------------------------------------------------
 FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-alpine AS web
@@ -64,24 +66,45 @@ RUN apk add --no-cache gnupg \
     && wget -q -O /powerdns.asc https://repo.powerdns.com/FD380FBB-pub.asc \
     && gpg --show-keys --with-colons /powerdns.asc | grep -q "^fpr:*${PDNS_KEY_FINGERPRINT}:"
 
+# --- Kea repository signing key ---------------------------------------------
+FROM --platform=$BUILDPLATFORM alpine:3 AS kea-key
+ARG KEA_SERIES
+ARG KEA_KEY_FINGERPRINT=360D0B03DFE219DB0F9FEA4C720DD962343B440F
+RUN apk add --no-cache gnupg \
+    && wget -q -O /isc-kea.asc "https://dl.cloudsmith.io/public/isc/kea-${KEA_SERIES}/gpg.key" \
+    && gpg --show-keys --with-colons /isc-kea.asc | grep -q "^fpr:*${KEA_KEY_FINGERPRINT}:"
+
 # --- Runtime image ----------------------------------------------------------
 FROM debian:${DEBIAN_VERSION}-slim
 ARG DEBIAN_VERSION
 ARG PDNS_AUTH_SERIES
 ARG PDNS_REC_SERIES
+ARG KEA_SERIES
 
 COPY --from=pdns-key /powerdns.asc /etc/apt/keyrings/powerdns.asc
+COPY --from=kea-key /isc-kea.asc /etc/apt/keyrings/isc-kea.asc
 
-# ca-certificates is needed to authenticate NTS time sources and DNS over TLS.
+# ca-certificates is needed to authenticate NTS time sources, DNS over TLS and
+# the HTTPS repository of Kea.
 RUN set -eu; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends ca-certificates; \
     repo="deb [signed-by=/etc/apt/keyrings/powerdns.asc] http://repo.powerdns.com/debian"; \
     echo "$repo ${DEBIAN_VERSION}-auth-${PDNS_AUTH_SERIES} main" > /etc/apt/sources.list.d/powerdns-auth.list; \
     echo "$repo ${DEBIAN_VERSION}-rec-${PDNS_REC_SERIES} main" > /etc/apt/sources.list.d/powerdns-rec.list; \
     printf 'Package: pdns-*\nPin: origin repo.powerdns.com\nPin-Priority: 600\n' > /etc/apt/preferences.d/powerdns; \
+    echo "deb [signed-by=/etc/apt/keyrings/isc-kea.asc] https://dl.cloudsmith.io/public/isc/kea-${KEA_SERIES}/deb/debian ${DEBIAN_VERSION} main" \
+      > /etc/apt/sources.list.d/isc-kea.list; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
-      ca-certificates chrony sqlite3 \
-      pdns-server pdns-backend-sqlite3 pdns-recursor; \
+      chrony sqlite3 \
+      pdns-server pdns-backend-sqlite3 pdns-recursor \
+      isc-kea-dhcp4 isc-kea-dhcp6 isc-kea-hooks libcap2-bin; \
+    # Kea runs as an unprivileged user: grant its binaries the capabilities to
+    # open raw sockets and bind the DHCP ports. libcap2-bin provides setcap and
+    # is required by chrony anyway, through iproute2.
+    setcap cap_net_raw,cap_net_bind_service+ep /usr/sbin/kea-dhcp4; \
+    setcap cap_net_bind_service+ep /usr/sbin/kea-dhcp6; \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=s6 /rootfs/ /
@@ -94,7 +117,7 @@ ENV S6_BEHAVIOUR_IF_STAGE2_FAILS=2 \
     ENS_DATA_DIR=/data
 
 VOLUME /data
-EXPOSE 8443/tcp 53/udp 53/tcp 123/udp
+EXPOSE 8443/tcp 53/udp 53/tcp 67/udp 123/udp 547/udp
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD ["/usr/local/bin/easynetservices", "healthcheck"]

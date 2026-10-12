@@ -15,6 +15,7 @@ import (
 
 	"github.com/tchevalleraud/EasyNetServices/internal/auth"
 	"github.com/tchevalleraud/EasyNetServices/internal/config"
+	"github.com/tchevalleraud/EasyNetServices/internal/dhcp"
 	"github.com/tchevalleraud/EasyNetServices/internal/dns"
 	"github.com/tchevalleraud/EasyNetServices/internal/ntp"
 	"github.com/tchevalleraud/EasyNetServices/internal/store"
@@ -63,7 +64,15 @@ func newTestClient(t *testing.T) *testClient {
 	}
 	// No PowerDNS in tests: point the client to a closed port.
 	dnsMgr.SetAuthURL("http://127.0.0.1:1")
-	srv := httptest.NewServer(NewServer(cfg, st, authSvc, Services{System: system.NewManager(st, log), NTP: ntpMgr, DNS: dnsMgr}, ui, log).Handler())
+	dhcpMgr := dhcp.NewManager(st, &supervisor.S6{ServiceDir: dir + "/no-s6"}, dir, log)
+	dhcpMgr.SetSocketDir(dir + "/kea-run")
+	dhcpMgr.SetInterfaceLister(func() ([]dhcp.NetInterface, error) {
+		return []dhcp.NetInterface{{Name: "eth0", Up: true, Addresses: []string{"192.168.1.2/24"}}}, nil
+	})
+	if err := dhcpMgr.Init(ctx); err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(NewServer(cfg, st, authSvc, Services{System: system.NewManager(st, log), NTP: ntpMgr, DNS: dnsMgr, DHCP: dhcpMgr}, ui, log).Handler())
 	t.Cleanup(srv.Close)
 
 	jar, _ := cookiejar.New(nil)
@@ -268,5 +277,53 @@ func TestDNSSettings(t *testing.T) {
 	}
 	if status, body = c.do("GET", "/api/v1/dns/zones", ""); status != http.StatusServiceUnavailable || errorCode(body) != "dns_unavailable" {
 		t.Fatalf("expected dns_unavailable without PowerDNS, got %d %v", status, body)
+	}
+}
+
+func TestDHCP(t *testing.T) {
+	c := newTestClient(t)
+	c.login()
+
+	status, body := c.do("GET", "/api/v1/dhcp/settings", "")
+	if status != http.StatusOK || body["dhcpv4"].(map[string]any)["enabled"] != false {
+		t.Fatalf("expected default settings, got %d %v", status, body)
+	}
+	status, body = c.do("PUT", "/api/v1/dhcp/settings",
+		`{"interfaces":["eth9"],"dhcpv4":{"enabled":true,"validLifetime":3600,"preferredLifetime":0,"options":{"dnsServers":[],"domainName":"","domainSearch":[],"ntpServers":[]}},"dhcpv6":{"enabled":false,"validLifetime":3600,"preferredLifetime":1800,"options":{"dnsServers":[],"domainName":"","domainSearch":[],"ntpServers":[]}}}`)
+	if status != http.StatusBadRequest || errorCode(body) != "validation_failed" {
+		t.Fatalf("expected an unknown interface to be refused, got %d %v", status, body)
+	}
+	status, body = c.do("PUT", "/api/v1/dhcp/settings",
+		`{"interfaces":["eth0"],"dhcpv4":{"enabled":true,"validLifetime":3600,"preferredLifetime":0,"options":{"dnsServers":["192.168.1.2"],"domainName":"home.lan","domainSearch":[],"ntpServers":[]}},"dhcpv6":{"enabled":false,"validLifetime":3600,"preferredLifetime":1800,"options":{"dnsServers":[],"domainName":"","domainSearch":[],"ntpServers":[]}}}`)
+	if status != http.StatusOK {
+		t.Fatalf("expected update to succeed, got %d %v", status, body)
+	}
+
+	status, body = c.do("POST", "/api/v1/dhcp/v4/subnets",
+		`{"subnet":"192.168.1.0/24","pools":["192.168.1.100-192.168.1.199"],"gateway":"192.168.1.1","reservations":[{"hwAddress":"AA-BB-CC-DD-EE-FF","ipAddress":"192.168.1.10","hostname":"nas"}]}`)
+	if status != http.StatusCreated || body["id"] != float64(1) || body["pools"].([]any)[0] != "192.168.1.100 - 192.168.1.199" {
+		t.Fatalf("expected subnet 1 to be created, got %d %v", status, body)
+	}
+	if r := body["reservations"].([]any)[0].(map[string]any); r["hwAddress"] != "aa:bb:cc:dd:ee:ff" {
+		t.Fatalf("expected a normalized MAC address, got %v", r)
+	}
+	status, body = c.do("POST", "/api/v1/dhcp/v4/subnets", `{"subnet":"192.168.1.128/25"}`)
+	if status != http.StatusBadRequest || errorCode(body) != "validation_failed" {
+		t.Fatalf("expected an overlapping subnet to be refused, got %d %v", status, body)
+	}
+	if status, _ = c.do("GET", "/api/v1/dhcp/v4/subnets/1", ""); status != http.StatusOK {
+		t.Fatalf("expected subnet 1, got %d", status)
+	}
+	if status, _ = c.do("GET", "/api/v1/dhcp/v5/subnets/1", ""); status != http.StatusNotFound {
+		t.Fatalf("expected an unknown family to be refused, got %d", status)
+	}
+	if status, body = c.do("GET", "/api/v1/dhcp/v4/leases", ""); status != http.StatusServiceUnavailable || errorCode(body) != "dhcp_unavailable" {
+		t.Fatalf("expected dhcp_unavailable without Kea, got %d %v", status, body)
+	}
+	if status, _ = c.do("DELETE", "/api/v1/dhcp/v4/subnets/1", ""); status != http.StatusNoContent {
+		t.Fatalf("expected subnet deletion, got %d", status)
+	}
+	if status, _ = c.do("GET", "/api/v1/dhcp/v4/subnets/1", ""); status != http.StatusNotFound {
+		t.Fatalf("expected the subnet to be gone, got %d", status)
 	}
 }

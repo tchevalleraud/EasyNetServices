@@ -142,3 +142,84 @@ export interface DnsRRSet {
 export interface DnsZoneDetail extends DnsZone {
   rrsets: DnsRRSet[]
 }
+
+export type DhcpFamily = 'v4' | 'v6'
+
+export interface DhcpOptions {
+  dnsServers: string[]
+  domainName: string
+  domainSearch: string[]
+  ntpServers: string[]
+}
+
+export interface DhcpFamilySettings {
+  enabled: boolean
+  validLifetime: number
+  preferredLifetime: number
+  options: DhcpOptions
+}
+
+export interface DhcpSettings {
+  interfaces: string[]
+  dhcpv4: DhcpFamilySettings
+  dhcpv6: DhcpFamilySettings
+}
+
+export interface DhcpReservation {
+  hwAddress: string
+  duid: string
+  ipAddress: string
+  hostname: string
+  description: string
+}
+
+export interface DhcpSubnet {
+  id: number
+  subnet: string
+  description: string
+  interface: string
+  pools: string[]
+  gateway: string
+  validLifetime: number
+  options: DhcpOptions
+  reservations: DhcpReservation[]
+}
+
+export interface DhcpLease {
+  address: string
+  hwAddress: string
+  duid: string
+  hostname: string
+  subnetId: number
+  state: 'active' | 'declined' | 'expired' | 'released' | 'registered' | 'unknown'
+  expires: string
+  reserved: boolean
+}
+
+export interface DhcpSubnetUsage {
+  id: number
+  subnet: string
+  total: number
+  assigned: number
+  declined: number
+}
+
+export interface DhcpFamilyStatus {
+  state: ServiceState
+  socketErrors: string[]
+  subnets: DhcpSubnetUsage[]
+  packetsReceived: number
+  packetsSent: number
+}
+
+export interface DhcpStatus {
+  dhcpv4: DhcpFamilyStatus
+  dhcpv6: DhcpFamilyStatus
+}
+
+export interface NetInterface {
+  name: string
+  hwAddress: string
+  up: boolean
+  addresses: string[]
+}

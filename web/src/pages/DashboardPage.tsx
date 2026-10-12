@@ -1,13 +1,14 @@
-import { Badge, Card, Group, SimpleGrid, Skeleton, Stack, Text, ThemeIcon, Title, UnstyledButton } from '@mantine/core'
+import { Card, Group, SimpleGrid, Skeleton, Stack, Text, ThemeIcon, Title, UnstyledButton } from '@mantine/core'
 import { IconClock, IconNetwork, IconServer, IconWorldWww, type Icon } from '@tabler/icons-react'
 import { useQuery } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 import { api } from '../api/client'
-import type { SystemInfo } from '../api/types'
+import type { ServiceState, SystemInfo } from '../api/types'
 import { ServiceStateBadge } from '../components/ServiceStateBadge'
 import { useServerTime } from '../hooks/useServerTime'
 import { formatDuration } from '../utils/format'
+import { formatCount, useDhcpStatus } from './dhcp/queries'
 import { useDnsStatus, useZones } from './dns/queries'
 import { useNtpStatus } from './ntp/queries'
 
@@ -96,11 +97,36 @@ function DnsCard() {
   )
 }
 
-function ComingSoonBadge() {
+function DhcpCard() {
+  const { data: status } = useDhcpStatus()
+  // The service runs when either server runs, and is disabled when both are.
+  let state: ServiceState | undefined
+  if (status) {
+    const states = [status.dhcpv4.state, status.dhcpv6.state]
+    state = states.includes('running')
+      ? 'running'
+      : states.every((s) => s === 'disabled')
+        ? 'disabled'
+        : states.find((s) => s !== 'disabled')
+  }
+  const subnets = status ? [...status.dhcpv4.subnets, ...status.dhcpv6.subnets] : []
+  const assigned = subnets.reduce((sum, s) => sum + s.assigned, 0)
   return (
-    <Badge variant="light" color="gray">
-      Coming soon
-    </Badge>
+    <ServiceCard
+      name="DHCP"
+      description="DHCPv4 and DHCPv6 subnets, reservations and leases"
+      icon={IconNetwork}
+      to="/dhcp"
+      badge={state ? <ServiceStateBadge state={state} /> : <Skeleton h={20} w={70} />}
+      footer={
+        status && (
+          <Text size="sm" mt="sm" c="dimmed">
+            {subnets.length} subnet{subnets.length === 1 ? '' : 's'}
+            {state === 'running' ? ` · ${formatCount(assigned)} address${assigned === 1 ? '' : 'es'} in use` : ''}
+          </Text>
+        )
+      }
+    />
   )
 }
 
@@ -129,12 +155,7 @@ export function DashboardPage() {
 
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }}>
         <DnsCard />
-        <ServiceCard
-          name="DHCP"
-          description="DHCPv4 and DHCPv6 subnets, reservations and leases"
-          icon={IconNetwork}
-          badge={<ComingSoonBadge />}
-        />
+        <DhcpCard />
         <NtpCard />
       </SimpleGrid>
 

@@ -1,0 +1,20 @@
+#!/command/with-contenv sh
+# Kea DHCPv4 server. It is not part of the user bundle: the management server
+# generates its configuration and starts, stops or reloads it, so that a
+# disabled server never starts, even briefly at boot.
+dir="${ENS_DATA_DIR:-/data}/kea"
+conf="$dir/kea-dhcp4.conf"
+
+until [ -f "$conf" ]; do sleep 1; done
+
+mkdir -p /run/kea "$dir"
+chmod o+x "${ENS_DATA_DIR:-/data}"
+chown _kea:_kea /run/kea "$dir"
+chmod 750 /run/kea "$dir"
+# A pid file left by a previous container would prevent Kea from starting.
+rm -f /run/kea/kea-dhcp4.kea-dhcp4.pid
+
+# Kea only accepts lease files and control sockets in these directories.
+export KEA_DHCP_DATA_DIR="$dir" KEA_CONTROL_SOCKET_DIR=/run/kea
+# The binary holds the capabilities to open raw sockets and bind port 67.
+exec s6-setuidgid _kea kea-dhcp4 -c "$conf"

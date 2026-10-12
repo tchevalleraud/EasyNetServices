@@ -4,6 +4,8 @@ import { AppLayout } from './components/AppLayout'
 import { ChangePasswordPage } from './pages/ChangePasswordPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { LoginPage } from './pages/LoginPage'
+import { DhcpPage } from './pages/dhcp/DhcpPage'
+import { SubnetPage } from './pages/dhcp/SubnetPage'
 import { DnsPage } from './pages/dns/DnsPage'
 import { ZonePage } from './pages/dns/ZonePage'
 import { NtpPage } from './pages/ntp/NtpPage'
@@ -30,6 +32,8 @@ export function App() {
         <Route index element={<DashboardPage />} />
         <Route path="dns" element={<DnsPage />} />
         <Route path="dns/zones/:zone" element={<ZonePage />} />
+        <Route path="dhcp" element={<DhcpPage />} />
+        <Route path="dhcp/subnets/:family/:id" element={<SubnetPage />} />
         <Route path="ntp" element={<NtpPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

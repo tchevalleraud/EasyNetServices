@@ -24,7 +24,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { label: 'Dashboard', icon: IconDashboard, to: '/' },
   { label: 'DNS', icon: IconWorldWww, to: '/dns' },
-  { label: 'DHCP', icon: IconNetwork },
+  { label: 'DHCP', icon: IconNetwork, to: '/dhcp' },
   { label: 'NTP', icon: IconClock, to: '/ntp' },
 ]
 
